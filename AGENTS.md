@@ -41,3 +41,11 @@
 ## Cross-device continuation
 
 Follow `docs/CODEX_HANDOFF.md`. Do not spend project time debugging Codex Remote connectivity unless the user explicitly changes that priority.
+
+## Continuous Git synchronization
+
+- GitHub is the shared project memory for the Windows and Mac workspaces.
+- After every meaningful verified milestone, update `PROJECT_CONTEXT.md` and the relevant experiment record, then commit and push the coherent documentation/code state promptly.
+- Do not wait until a device switch to record important results, blockers, decisions, dependency revisions, or exact next steps.
+- Before every push, confirm that weights, datasets, videos, generated point clouds, run outputs, credentials, and machine-local environments remain untracked.
+- A clean working tree on one computer does not prove another clone is synchronized; compare the local branch with `origin/main` before continuing work.

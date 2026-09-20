@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-17
+Last updated: 2026-09-20
 
 ## Current objective
 
@@ -67,6 +67,16 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - A frame-preparation `--dry-run` passed at approximately 100K pixels per frame.
 - Full model inference has not run on Mac because CUDA and MPS are unavailable in the current PyTorch environment.
 
+### Windows/WSL verification and first CUDA baseline
+
+- Ubuntu 22.04 under WSL2 is initialized with Python 3.10.12 and Git 2.34.1.
+- CUDA PyTorch check passed with PyTorch 2.5.1+cu121, CUDA available, compute capability 8.9, 8.0 GiB VRAM, and BF16 support.
+- The 8-frame dry-run passed on `third_party/Pi3/examples/skating.mp4` at 434x224 (97,216 pixels/frame), using Pi3 revision `9fa3ddb3f8d53041f8b2738df404f62223bbaa7b`.
+- Direct Hugging Face access from WSL failed because both IPv4 and IPv6 connections were unreachable. The official Pi3 `model.safetensors` was downloaded through Windows and copied into WSL.
+- Local Pi3 checkpoint SHA-256: `33580e4702ac671558aedeab1148fd08118f7ce45bdbeb99f3e3cf340062875d` (3.6 GiB).
+- First full original-Pi3 CUDA run succeeded with 8 frames and 100K pixel limit. It retained 343,214 points and used 5.52 GiB peak allocated GPU memory.
+- The CUDA-compiled RoPE2D extension was unavailable, so Pi3 used its slower PyTorch fallback; this affected speed, not run completion.
+
 ## Compute environments
 
 ### Mac
@@ -81,7 +91,13 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - NVIDIA GeForce RTX 4060 Laptop GPU.
 - 8,188 MiB VRAM.
 - Driver 596.08; `nvidia-smi` reports CUDA capability up to 13.2.
-- GPU power limit shown as 45W.
+- GPU power limit shown as 135W in the Windows `nvidia-smi` check on 2026-09-17; the earlier 45W observation was incorrect or came from a different power state.
+- WSL2 is active after the Windows restart, and Ubuntu 22.04 is registered and initialized as a version-2 distribution.
+- Linux user `dell` (UID 1000) is initialized and belongs to the `sudo` group.
+- Ubuntu reports Python 3.10.12 and Git 2.34.1.
+- WSL GPU passthrough is verified: `nvidia-smi` sees the NVIDIA GeForce RTX 4060 Laptop GPU, 8,188 MiB VRAM, Windows driver 596.08, and CUDA capability up to 13.2.
+- Firmware virtualization is enabled and the CPU reports VM monitor mode extensions and second-level address translation support.
+- No `python` executable is available in the current Windows PowerShell environment.
 - Intended first workload: 8 frames at about 100K pixels/frame; then 10 and 12 frames only after successful recorded runs.
 - Preferred runtime: WSL2 Ubuntu 22.04 with CUDA-enabled PyTorch.
 
@@ -109,9 +125,9 @@ After cloning on another machine, check out these revisions before reproducing t
 
 ## Known unresolved issues
 
-1. WSL2 and the Python environment have not yet been installed/verified on the Windows laptop.
-2. Pi3/Pi3X weights have not yet been downloaded on Windows.
-3. The first full CUDA run has not yet completed.
+1. The WSL virtual environment and CUDA-enabled PyTorch are installed and verified. Native Windows Python is absent, but it is not required for the selected WSL workflow.
+2. The original Pi3 weight is available locally, but Pi3X weights have not yet been downloaded on Windows.
+3. The first full CUDA run and its artifacts were inspected and recorded. The remaining quality question is whether Pi3X reduces the observed grid/ray artifacts on the same frames.
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
@@ -120,15 +136,10 @@ After cloning on another machine, check out these revisions before reproducing t
 
 ## Exact next steps
 
-1. On Windows, install or open WSL2 Ubuntu 22.04.
-2. Clone `https://github.com/alexy-dot/GR3D.git` or pull its `main` branch.
-3. Clone Pi3 and VGGT-Long at the pinned revisions listed above.
-4. Create the environment following `reconstruction/README.md`.
-5. Run `python reconstruction/check_gpu.py` and save its output.
-6. Run the documented `--dry-run`.
-7. Run original Pi3 on the official `skating.mp4` with 8 frames and 100K pixels/frame.
-8. Inspect `manifest.json`, `trajectory.png`, and `point_cloud.ply` before running Pi3X on exactly the same frames.
-9. Record both runs in `research/experiments/` and only then decide whether the laptop can support a 10/12-frame window.
+1. Download the official Pi3X checkpoint through Windows because WSL Hugging Face access is unavailable.
+2. Run Pi3X on exactly the same 8 frames and 100K pixel limit.
+3. Compare Pi3 and Pi3X confidence, trajectory, point count, visual artifacts, runtime, and peak memory before changing frame count.
+4. Only after the fixed-input comparison, decide whether the laptop can support a 10/12-frame window.
 
 ## Handoff status
 
