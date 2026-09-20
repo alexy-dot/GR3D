@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-20 (OSI-Bench pilots completed)
+Last updated: 2026-09-20 (first OSI no-ID evaluation package verified)
 
 ## Current objective
 
@@ -119,6 +119,9 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - `reconstruction/render_semantic_audit.py` now generates evaluation-only target-class overlays, a contact sheet, and per-frame pixel coverage without object IDs. On OSI 0000, bicycle is present in 6/8 sampled frames (9,323 pixels), minibike in 5/8 (12,182), and person in 8/8 (10,842).
 - The overlay audit shows temporal class flicker: the same parked two-wheelers alternate between ADE20K `bicycle` and `minibike`. This explains part of the 3D component fragmentation and demonstrates that semantic presence is not instance correspondence.
 - An optional, explicitly non-GR3D `--label-remap` extension is implemented in `build_semantic_voxels.py`. With only bicycle/minibike merged into `two_wheeler` at fixed voxel size 0.03 and threshold 10, total components drop from 62 to 60, two-wheeler components from 7 to 5, object-layer components from 17 to 15, and weighted purity rises from 0.9463 to 0.9488. The merge changes 5,552 of 13,653 matched observations.
+- The first OSI evaluation package is now generated from scene 0000 by `reconstruction/prepare_osi_pilot_package.py` and independently checked by `reconstruction/validate_osi_pilot_package.py`. It contains 8 exact sampled frames, 12 canonical/semantic views, 10 no-ID questions, separated ground truth, and four declared comparison conditions. Validation passed for 24 hashed input/metadata files; the complete ignored package is 3.7 MiB.
+- The four first-version conditions are raw frames only, raw plus unmodified-ADE layout/object views, raw plus the optional two-wheeler-merged views, and a tagged-question diagnostic control. Answers are not present in either question file. Source frames may still contain benchmark number tags baked into the pixels, which is recorded as a limitation rather than silently treated as no-ID imagery.
+- `docs/FIRST_VERSION_HANDOFF.md` is the current senior-facing handoff. The first version is ready as a reproducible input/preprocessing package; downstream MLLM predictions have deliberately not been claimed.
 
 ### Paper-to-code coverage
 
@@ -191,10 +194,10 @@ After cloning on another machine, check out these revisions before reproducing t
 
 ## Exact next steps
 
-1. Build the first small OSI evaluation package with raw sampled frames, canonical layout view, original-ADE object view, merged-two-wheeler object view, QA metadata, and condition manifest. Do not include persistent IDs in the no-ID conditions.
-2. Monitor the official OSI release for the promised raw multimodal data. When calibration, timestamps, LiDAR, and IMU/GPS become available, add explicit sensor-to-camera alignment before claiming correct outdoor orientation or metric scale.
-3. Replace absolute model-unit voxel defaults with a declared scene-normalized pilot rule until metric scale is available; keep original Pi3 results labeled non-metric.
-4. Define the first downstream comparison as raw-frame-only versus raw frames plus canonical layout/object views. Retain an ID-linked control only for diagnostic comparability; do not make it the proposed method.
+1. Run the prepared four-condition package through one fixed MLLM/evaluation protocol and report per-category accuracy, not only overall accuracy. Keep `ground_truth.json` outside the model prompt.
+2. Add a visual-tag-free frame condition if the baked-in OSI number tags materially confound the no-ID hypothesis; do not describe simple question-text stripping as a completely ID-free benchmark.
+3. Monitor the official OSI release for the promised raw multimodal data. When calibration, timestamps, LiDAR, and IMU/GPS become available, add explicit sensor-to-camera alignment before claiming correct outdoor orientation or metric scale.
+4. Replace absolute model-unit voxel defaults with a declared scene-normalized pilot rule before expanding across scenes; keep original Pi3 results labeled non-metric.
 
 ## Handoff status
 

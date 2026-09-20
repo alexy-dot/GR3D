@@ -225,6 +225,29 @@ python reconstruction/build_semantic_voxels.py \
   --label-remap research/configs/osi-two-wheeler-remap.json
 ```
 
+## Prepare and validate a no-ID OSI pilot package
+
+After the reconstruction and semantic view sets are complete, assemble the four
+first-version evaluation conditions with answers stored separately:
+
+```bash
+python reconstruction/prepare_osi_pilot_package.py \
+  --run-directory outputs/osi_0000_pi3_8f_exact \
+  --qa-json tmp/osi0000_qa.json \
+  --layout-views outputs/osi_0000_pi3_8f_exact/voxel_views_layout \
+  --ade-object-views outputs/osi_0000_pi3_8f_exact/voxel_views_objects_c10 \
+  --merged-object-views outputs/osi_0000_pi3_8f_exact/voxel_views_objects_c10_tw \
+  --output outputs/osi_0000_first_version_package \
+  --scene-id 0000
+
+python reconstruction/validate_osi_pilot_package.py \
+  outputs/osi_0000_first_version_package
+```
+
+The validator rejects missing or modified files, absolute manifest paths, object-ID
+suffixes in no-ID questions, answer leakage, and unexpected question/condition counts.
+Generated packages stay under `outputs/` and must not be committed.
+
 ## Increasing the workload
 
 Change one variable at a time:

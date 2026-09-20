@@ -119,6 +119,12 @@ This is calibration, not independent validation: the same 28.1 m answer defines 
 
 The paper states that the acquisition rig used synchronized stereo RGB, 32-beam LiDAR, and IMU/GPS, and that the raw streams were calibrated during benchmark construction. The current official GitHub repository and Hugging Face release expose benchmark MP4 files and QA metadata, but no raw LiDAR, IMU/GPS, calibration, timestamp, sparse-depth, or reference-pose files were found. The paper says that additional raw multimodal videos will be released. Until that happens, camera-gravity consistency and answer-derived scale anchors must remain explicitly weaker than sensor-grounded evaluation.
 
+### First-version evaluation package
+
+The scene 0000 pilot was assembled into an ignored, reproducible 3.7 MiB package. It contains the 8 exact sampled frames, RGB point-cloud XY/XZ/YZ views, layout XY/XZ/YZ views, original-ADE object XY/XZ/YZ views, two-wheeler-merged object XY/XZ/YZ views, 10 evaluation questions, separated ground truth, and a condition manifest.
+
+Four conditions are declared: raw frames only, raw plus original-ADE views, raw plus merged-two-wheeler views, and a tagged-question control. `reconstruction/validate_osi_pilot_package.py` verified 24 hashed files, 10 questions, and all four conditions. The no-ID question file contains no `(id: NN)` suffixes and no answer field. This does not remove any numeric tags already baked into the source video pixels.
+
 ## Interpretation and decision
 
 - The official-OSI-video-to-no-ID-voxel pipeline now runs end to end without downloading the full dataset.
