@@ -176,6 +176,28 @@ rotation basis, pose convention, heading source, and camera-up disagreement.
 This provides scene-independent upright views, but it does not recover geographic
 north and should not be described as a semantic room-axis alignment.
 
+## Camera trajectory diagnostics
+
+Measure path length, endpoint displacement, straightness, and raw-coordinate heading change:
+
+```bash
+python reconstruction/analyze_camera_trajectory.py \
+  --camera-poses outputs/run/camera_poses.npy \
+  --output outputs/run/trajectory_analysis.json
+```
+
+For a scale-invariant Pi3 run, one known distance may be recorded as an explicit scale anchor:
+
+```bash
+python reconstruction/analyze_camera_trajectory.py \
+  --camera-poses outputs/run/camera_poses.npy \
+  --output outputs/run/trajectory_analysis.json \
+  --known-path-length-m 28.1 \
+  --anchor-source "OSI-Bench question index 9"
+```
+
+This calibrates that run only. It is not an independent metric-accuracy or scale-drift measurement.
+
 ## Increasing the workload
 
 Change one variable at a time:

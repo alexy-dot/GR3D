@@ -114,6 +114,8 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - At size 0.03 the OSI 0000 layout layer retains 20,150 voxels from 24 components, whereas the object layer retains only 144 voxels from 4 components. The current 30-voxel component cutoff is therefore too destructive for small outdoor objects and must be tuned separately from the house presentation setting.
 - A fixed-size threshold sweep on OSI 0000 changed only `min_component_voxels`: threshold 5 produced 21,334 voxels/141 components and a fragmentation warning; 10 produced 20,817/62 without the warning; 20 produced 20,500/37; 30 produced 20,294/28. Threshold 10 retains 3 bicycle, 4 minibike, 1 person, and 3 signboard components, while threshold 30 retains only 2 minibike components among those targets.
 - The threshold-10 object-only render contains 332 voxels from 17 components and is the best initial presentation tradeoff for this one outdoor scene. It is not a cross-scene default.
+- A reusable trajectory audit is implemented in `reconstruction/analyze_camera_trajectory.py`. On OSI 0000, Pi3 path length is 1.877205 model units, endpoint displacement is 1.876864, straightness is 0.999818, and raw-XY heading change is 1.09 degrees. This agrees with the benchmark's `straight` trajectory answer.
+- Using OSI question index 9's 28.1 m trajectory length as a single scale anchor gives 14.9691 meters per Pi3 model unit. This calibrates scene 0000 only and is not independent metric validation or a scale-drift measurement.
 
 ### Paper-to-code coverage
 
@@ -181,13 +183,13 @@ After cloning on another machine, check out these revisions before reproducing t
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
-11. The first OSI outdoor pilot proves pipeline integration only. The official benchmark metadata does not include the raw LiDAR/IMU/GPS streams described by the paper, and the public video ZIPs alone cannot provide sensor-grounded ATE, metric scale, or heading validation.
+11. The first OSI outdoor pilot proves pipeline integration only. The paper describes synchronized stereo, 32-beam LiDAR, and IMU/GPS and says additional raw multimodal videos will be released, but the current official GitHub/Hugging Face release contains only MP4 and QA metadata. It cannot currently provide sensor-grounded ATE, metric scale, or heading validation.
 12. ADE20K semantic voting on OSI 0000 produces coherent large layout classes, but the current 30-voxel cutoff removes most small-object components. Internal purity must not be interpreted as correct object segmentation.
 
 ## Exact next steps
 
 1. Match the threshold-10 object components on OSI 0000 back to the benchmark's tagged bicycle/minibike/person targets for evaluation only, without adding persistent IDs to the reconstruction representation.
-2. Determine whether OSI's raw IMU/GPS/LiDAR calibration and timestamps are publicly obtainable separately from the benchmark MP4 archives. If available, add explicit sensor-to-camera alignment before claiming correct outdoor orientation or metric scale.
+2. Monitor the official OSI release for the promised raw multimodal data. When calibration, timestamps, LiDAR, and IMU/GPS become available, add explicit sensor-to-camera alignment before claiming correct outdoor orientation or metric scale.
 3. Replace absolute model-unit voxel defaults with a declared scene-normalized pilot rule until metric scale is available; keep original Pi3 results labeled non-metric.
 4. Package raw frames, aligned layout/object views, questions, answers, and condition metadata for a small OSI evaluation subset. Retain raw-frame-only and ID-linked controls so the no-ID render hypothesis is directly testable.
 

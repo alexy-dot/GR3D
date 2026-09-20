@@ -83,10 +83,28 @@ Voxel size was then held at 0.03 while only the minimum component size changed:
 
 The 10-voxel condition gives the best initial presentation tradeoff on this scene. Its object layer contains 332 voxels from 17 components across person, plant, base, signboard, awning, minibike, and bicycle labels. It is retained as a scene-specific pilot setting, not a universal default.
 
+### Trajectory shape and answer-derived scale anchor
+
+The eight Pi3 camera centers produce:
+
+- path length: 1.877205 model units;
+- endpoint displacement: 1.876864 model units;
+- straightness ratio: 0.999818;
+- raw-XY heading change: 1.09 degrees.
+
+The near-one straightness ratio and small heading change agree with OSI-Bench question index 8, whose answer is `straight`. Question index 9 gives a 28.1 m full-trajectory length. Using that answer as a single scale anchor yields 14.9691 meters per Pi3 model unit.
+
+This is calibration, not independent validation: the same 28.1 m answer defines the scale, so it cannot measure absolute-scale error or scale drift. The calculation and warning are preserved in `trajectory_analysis.json` by `reconstruction/analyze_camera_trajectory.py`.
+
+### Sensor-ground-truth availability
+
+The paper states that the acquisition rig used synchronized stereo RGB, 32-beam LiDAR, and IMU/GPS, and that the raw streams were calibrated during benchmark construction. The current official GitHub repository and Hugging Face release expose benchmark MP4 files and QA metadata, but no raw LiDAR, IMU/GPS, calibration, timestamp, sparse-depth, or reference-pose files were found. The paper says that additional raw multimodal videos will be released. Until that happens, camera-gravity consistency and answer-derived scale anchors must remain explicitly weaker than sensor-grounded evaluation.
+
 ## Interpretation and decision
 
 - The official-OSI-video-to-no-ID-voxel pipeline now runs end to end without downloading the full dataset.
 - The camera-gravity alignment is internally consistent on the outdoor pilot, but it has not been compared with OSI IMU/GPS gravity or heading and must not be called ground-truth orientation.
+- The reconstructed camera path is almost perfectly straight and agrees with the benchmark's qualitative trajectory label. The benchmark's 28.1 m trajectory answer can anchor scene scale, but cannot independently validate it.
 - High voxel label purity is only self-consistency after semantic voting. It does not prove correct geometry or correct object segmentation.
 - The 30-voxel component threshold is too destructive for small outdoor objects: most of the usable representation is layout, while only four object-layer components survive at size 0.03. Lowering only this threshold to 10 recovers 17 object-layer components without triggering the current fragmentation warning; lowering it to 5 produces 141 total components and does trigger the warning.
 - Do not choose a universal voxel size from these model-coordinate sweeps. Original Pi3 is scale-invariant. A metric outdoor threshold requires sensor calibration or scale alignment.
