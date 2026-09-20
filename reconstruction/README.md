@@ -69,7 +69,8 @@ python reconstruction/run_pi3_baseline.py \
   --model pi3 \
   --interval 12 \
   --max-frames 8 \
-  --pixel-limit 100000
+  --pixel-limit 100000 \
+  --save-observations
 ```
 
 Then run the practical Pi3X comparison on exactly the same frames:
@@ -93,6 +94,87 @@ Each run writes:
 - `frames.txt`
 - `manifest.json`
 - `trajectory.png` when matplotlib is installed
+- `point_observations.npz` and `depth_maps.npy` when `--save-observations` is set;
+  these preserve the filtered point-to-frame/pixel mapping required to fuse 2D
+  semantic labels into a 3D voxel grid
+
+Validate this interface before semantic fusion:
+
+```bash
+python reconstruction/validate_observations.py outputs/pi3_house_8f_observations
+```
+
+After a segmentation model has written integer label maps with shape
+`(frames, height, width)`, fuse them into GR3D-style semantic voxel components:
+
+```bash
+python reconstruction/run_mask2former_semantic.py \
+  --run-directory outputs/pi3_house_8f_observations \
+  --model ~/models/mask2former-swin-small-ade-semantic
+```
+
+```bash
+python reconstruction/build_semantic_voxels.py \
+  --observations outputs/pi3_house_8f_observations/point_observations.npz \
+  --semantic-labels outputs/pi3_house_8f_observations/semantic_labels.npy \
+  --output outputs/pi3_house_8f_observations/semantic_voxels \
+  --voxel-size 0.03 \
+  --min-voxel-points 2 \
+  --min-voxel-views 1 \
+  --min-voxel-purity 0.0 \
+  --min-component-voxels 8
+```
+
+Voxel size is explicit because original Pi3 scale is not physically validated.
+Do not compare object dimensions between scenes until metric scale is established.
+The output manifest reports weighted semantic purity, the fraction of voxels
+supported by multiple views, fragmentation warnings, and the exact thresholds.
+These internal checks detect obvious failures but do not replace LiDAR/ground-truth
+geometry evaluation.
+
+Render the retained components without projecting persistent IDs back onto images:
+
+```bash
+python reconstruction/render_semantic_voxels.py \
+  --voxels outputs/pi3_house_8f_observations/semantic_voxels/semantic_voxels.npz \
+  --camera-poses outputs/pi3_house_8f_observations/camera_poses.npy \
+  --output outputs/pi3_house_8f_observations/object_block_views \
+  --color-by component \
+  --style both
+```
+
+For MLLM-facing images, render large structural classes separately from discrete
+objects so layout boxes do not obscure furniture, vehicles, or people:
+
+```bash
+python reconstruction/render_semantic_voxels.py ... --layer layout
+python reconstruction/render_semantic_voxels.py ... --layer objects
+```
+
+The exact class policy and retained semantic labels are written to each render
+manifest. This is a presentation split, not a claim of perfect thing/stuff
+instance segmentation.
+
+## Deterministic coordinate views
+
+Render fixed orthographic projections after reconstruction:
+
+```bash
+python reconstruction/render_canonical_views.py \
+  --point-cloud outputs/pi3_skating_8f/point_cloud.ply \
+  --camera-poses outputs/pi3_skating_8f/camera_poses.npy \
+  --output outputs/pi3_skating_8f/canonical_views \
+  --alignment camera-gravity
+```
+
+This writes `view_xy.png`, `view_xz.png`, `view_yz.png`, and a
+`render_manifest.json` containing the input hash and rendering parameters. The
+views are deterministic for a fixed seed. `camera-gravity` uses the consensus
+camera-up direction to make Z vertical, then uses camera motion/view direction
+to make horizontal orientation deterministic. The manifest records the origin,
+rotation basis, pose convention, heading source, and camera-up disagreement.
+This provides scene-independent upright views, but it does not recover geographic
+north and should not be described as a semantic room-axis alignment.
 
 ## Increasing the workload
 

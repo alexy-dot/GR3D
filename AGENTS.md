@@ -12,9 +12,11 @@
 - The active implementation target is the geometry-only part inspired by GR3D:
   `RGB video -> sampled frames -> point maps and camera poses -> persistent 3D map`.
 - Do not add object-ID overlays, source-image re-annotation, geometry-to-text conversion, or MLLM inference unless the research scope is explicitly changed.
+- The intended downstream extension is now explicit: test whether canonical axis-aligned renders of the reconstructed 3D scene (XY/XZ/YZ, with visible coordinates) plus a small number of original frames can support spatial reasoning without persistent object-ID annotation. Keep that evaluation separate from exact GR3D reproduction.
 - Keep exact GR3D comparability separate from practical extensions:
   original Pi3 is the comparison baseline; Pi3X/Pi3XVO/VGGT-Long are long-video or metric-oriented extensions.
 - Claims about metric scale, long-term consistency, or dynamic-scene robustness require measurements. A visually plausible PLY file is not sufficient evidence.
+- Do not claim that an unlabeled 3D render establishes object correspondence. Correspondence between a rendered 3D region and an object in an original image must be evaluated explicitly.
 
 ## Experiment discipline
 

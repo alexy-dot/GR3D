@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -59,6 +60,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--edge-rtol", type=float, default=0.03)
     parser.add_argument("--precision", choices=("auto", "bf16", "fp16"), default="auto")
     parser.add_argument("--device", default="cuda")
+    parser.add_argument(
+        "--save-observations",
+        action="store_true",
+        help=(
+            "Save filtered point-to-frame/pixel correspondence and dense depth maps "
+            "for later 2D-semantic-to-3D voxel fusion."
+        ),
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -206,6 +215,14 @@ def load_checkpoint(path: str) -> dict[str, torch.Tensor]:
     return torch.load(path, map_location="cpu", weights_only=False)
 
 
+def file_sha256(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def load_model(args: argparse.Namespace, device: torch.device) -> torch.nn.Module:
     if args.model == "pi3":
         from pi3.models.pi3 import Pi3
@@ -274,6 +291,15 @@ def main() -> None:
         "\n".join(json.dumps(asdict(record), ensure_ascii=False) for record in frame_records) + "\n",
         encoding="utf-8",
     )
+    if args.save_observations:
+        frame_dir = output_dir / "input_frames"
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        for index, tensor in enumerate(images_cpu):
+            array = (
+                tensor.permute(1, 2, 0).clamp(0, 1).mul(255).round()
+                .to(torch.uint8).numpy()
+            )
+            Image.fromarray(array).save(frame_dir / f"{index:06d}.png")
 
     base_manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -286,6 +312,11 @@ def main() -> None:
         "python": platform.python_version(),
         "torch": torch.__version__,
         "pi3_revision": git_revision(PI3_ROOT),
+        "checkpoint_sha256": (
+            file_sha256(Path(args.checkpoint).expanduser().resolve())
+            if args.checkpoint and not args.dry_run
+            else None
+        ),
     }
     write_json(output_dir / "manifest.json", base_manifest)
 
@@ -326,6 +357,32 @@ def main() -> None:
         colors = images[0].permute(0, 2, 3, 1)[mask]
         write_ply(point_cloud.float().cpu(), colors.float().cpu(), str(output_dir / "point_cloud.ply"))
 
+        observation_files: list[str] = []
+        if args.save_observations:
+            frame_y_x = torch.nonzero(mask, as_tuple=False).cpu().numpy()
+            observation_points = point_cloud.float().cpu().numpy()
+            observation_colors = (
+                colors.float().clamp(0, 1).mul(255).round().to(torch.uint8).cpu().numpy()
+            )
+            observation_confidence = (
+                probabilities[0][mask].float().cpu().numpy().astype(np.float16)
+            )
+            np.savez_compressed(
+                output_dir / "point_observations.npz",
+                points=observation_points,
+                colors=observation_colors,
+                frame_index=frame_y_x[:, 0].astype(np.uint16),
+                pixel_yx=frame_y_x[:, 1:3].astype(np.uint16),
+                confidence=observation_confidence,
+            )
+            depth_maps = result["local_points"][0, ..., 2].float().cpu().numpy()
+            np.save(output_dir / "depth_maps.npy", depth_maps.astype(np.float16))
+            observation_files = [
+                "input_frames/",
+                "point_observations.npz",
+                "depth_maps.npy",
+            ]
+
         poses = result["camera_poses"][0].float().cpu().numpy()
         np.save(output_dir / "camera_poses.npy", poses)
         write_json(output_dir / "camera_poses.json", poses.tolist())
@@ -362,6 +419,7 @@ def main() -> None:
             ),
             "peak_gpu_gib": round(torch.cuda.max_memory_allocated(device) / 1024**3, 2),
             "point_count": confidence_stats["kept_points"],
+            "observation_files": observation_files,
             "trajectory_plot_written": save_trajectory_plot(
                 poses, output_dir / "trajectory.png"
             ),
@@ -384,6 +442,19 @@ def main() -> None:
         }
         write_json(output_dir / "manifest.json", failure)
         raise SystemExit(failure["recommendation"]) from error
+    except Exception as error:
+        failure = {
+            **base_manifest,
+            "status": "failed",
+            "error_type": type(error).__name__,
+            "error": str(error),
+            "elapsed_seconds": time.perf_counter() - started,
+            "peak_gpu_gib": round(
+                torch.cuda.max_memory_allocated(device) / 1024**3, 2
+            ),
+        }
+        write_json(output_dir / "manifest.json", failure)
+        raise
 
 
 if __name__ == "__main__":
