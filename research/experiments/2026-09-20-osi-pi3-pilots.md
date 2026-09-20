@@ -83,6 +83,25 @@ Voxel size was then held at 0.03 while only the minimum component size changed:
 
 The 10-voxel condition gives the best initial presentation tradeoff on this scene. Its object layer contains 332 voxels from 17 components across person, plant, base, signboard, awning, minibike, and bicycle labels. It is retained as a scene-specific pilot setting, not a universal default.
 
+### 2D semantic coverage and two-wheeler label stability
+
+An evaluation-only overlay audit was run on the eight exact Pi3 input frames. It does not draw object IDs and is not used as the downstream representation.
+
+- `bicycle`: present in 6/8 frames, 9,323 total labeled pixels;
+- `minibike`: present in 5/8 frames, 12,182 pixels;
+- `person`: present in 8/8 frames, 10,842 pixels.
+
+Visual inspection shows that the same parked two-wheeler regions switch between `bicycle` and `minibike` across frames. The target is therefore covered in 2D, but the ADE20K class boundary is temporally unstable and can split related 3D components. Pixel coverage alone does not establish instance identity or correspondence.
+
+A practical extension merged only labels 116 (`minibike`) and 127 (`bicycle`) into `two_wheeler`, while holding the geometry, voxel size 0.03, and 10-voxel component threshold fixed. Compared with the unmodified ADE20K condition:
+
+| Condition | Voxels | All components | Two-wheeler components | Object-layer components | Weighted purity |
+|---|---:|---:|---:|---:|---:|
+| Original ADE20K | 20,817 | 62 | 7 (3 bicycle + 4 minibike) | 17 | 0.9463 |
+| Two-wheeler merge | 20,836 | 60 | 5 | 15 | 0.9488 |
+
+The merge changed 5,552 of 13,653 matched point observations. It modestly reduced fragmentation and retained 351 object-layer voxels rather than 332. This is promising but remains a labeled practical extension, not an exact GR3D reproduction and not proof that five components equal five physical instances.
+
 ### Trajectory shape and answer-derived scale anchor
 
 The eight Pi3 camera centers produce:

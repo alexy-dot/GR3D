@@ -8,9 +8,13 @@ import unittest
 import numpy as np
 
 try:
-    from reconstruction.build_semantic_voxels import connected_components, majority_labels
+    from reconstruction.build_semantic_voxels import (
+        apply_label_remap,
+        connected_components,
+        majority_labels,
+    )
 except ModuleNotFoundError:  # Also support direct execution from reconstruction/.
-    from build_semantic_voxels import connected_components, majority_labels
+    from build_semantic_voxels import apply_label_remap, connected_components, majority_labels
 
 
 class SemanticVoxelTests(unittest.TestCase):
@@ -33,6 +37,23 @@ class SemanticVoxelTests(unittest.TestCase):
         self.assertEqual(components[2], components[3])
         self.assertNotEqual(components[1], components[2])
         self.assertNotEqual(components[0], components[4])
+
+    def test_declared_label_group_remap(self) -> None:
+        labels = np.asarray([116, 127, 12, 127], dtype=np.int32)
+        config = {
+            "groups": [
+                {
+                    "name": "two_wheeler",
+                    "target_label": 116,
+                    "source_labels": [116, 127],
+                }
+            ]
+        }
+        remapped, names, records = apply_label_remap(labels, config)
+        np.testing.assert_array_equal(remapped, [116, 116, 12, 116])
+        self.assertEqual(names, {"116": "two_wheeler"})
+        self.assertEqual(records[0]["matched_observations"], 3)
+        self.assertEqual(records[0]["changed_observations"], 2)
 
 
 if __name__ == "__main__":

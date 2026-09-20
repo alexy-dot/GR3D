@@ -198,6 +198,33 @@ python reconstruction/analyze_camera_trajectory.py \
 
 This calibrates that run only. It is not an independent metric-accuracy or scale-drift measurement.
 
+## Semantic coverage audit
+
+Render evaluation-only target-class overlays and per-frame coverage statistics without object IDs:
+
+```bash
+python reconstruction/render_semantic_audit.py \
+  --run-directory outputs/run \
+  --semantic-labels outputs/run/semantics.npy \
+  --semantic-metadata outputs/run/semantics.json \
+  --output outputs/run/semantic_audit \
+  --target-classes bicycle,minibike,person
+```
+
+The resulting presence statistics measure semantic-model coverage only. They do not establish instance identity or 2D-to-3D correspondence.
+
+For a practical extension, closely related unstable labels may be merged before voxel voting with `--label-remap`. Keep this result separate from the unmodified ADE20K/GR3D comparison baseline:
+
+```bash
+python reconstruction/build_semantic_voxels.py \
+  --observations outputs/run/point_observations.npz \
+  --semantic-labels outputs/run/semantics.npy \
+  --output outputs/run/voxels_two_wheeler \
+  --voxel-size 0.03 \
+  --min-component-voxels 10 \
+  --label-remap research/configs/osi-two-wheeler-remap.json
+```
+
 ## Increasing the workload
 
 Change one variable at a time:

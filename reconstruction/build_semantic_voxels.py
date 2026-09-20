@@ -33,7 +33,48 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-voxel-views", type=int, default=1)
     parser.add_argument("--min-voxel-purity", type=float, default=0.0)
     parser.add_argument("--min-component-voxels", type=int, default=8)
+    parser.add_argument(
+        "--label-remap",
+        type=Path,
+        help=(
+            "Optional JSON semantic-group remap. This is a practical extension and "
+            "must be reported separately from the original ADE20K-label baseline."
+        ),
+    )
     return parser.parse_args()
+
+
+def apply_label_remap(
+    labels: np.ndarray, config: dict[str, object]
+) -> tuple[np.ndarray, dict[str, str], list[dict[str, object]]]:
+    """Apply declared label groups and return labels, name overrides, and audit records."""
+    remapped = labels.copy()
+    name_overrides: dict[str, str] = {}
+    records: list[dict[str, object]] = []
+    for group in config.get("groups", []):
+        if not isinstance(group, dict):
+            raise ValueError("label-remap groups must be JSON objects")
+        name = str(group["name"])
+        target = int(group["target_label"])
+        sources = sorted({int(value) for value in group["source_labels"]})
+        if target not in sources:
+            sources.append(target)
+            sources.sort()
+        mask = np.isin(remapped, sources)
+        changed = int(np.count_nonzero(mask & (remapped != target)))
+        matched = int(np.count_nonzero(mask))
+        remapped[mask] = target
+        name_overrides[str(target)] = name
+        records.append(
+            {
+                "name": name,
+                "target_label": target,
+                "source_labels": sources,
+                "matched_observations": matched,
+                "changed_observations": changed,
+            }
+        )
+    return remapped, name_overrides, records
 
 
 def majority_labels(
@@ -123,6 +164,15 @@ def main() -> None:
         raise ValueError("semantic label resolution does not match observations")
 
     point_labels = semantic[frames, pixels[:, 0], pixels[:, 1]].astype(np.int32)
+    remap_path = None
+    remap_records: list[dict[str, object]] = []
+    if args.label_remap:
+        remap_path = args.label_remap.expanduser().resolve()
+        remap_config = json.loads(remap_path.read_text(encoding="utf-8"))
+        point_labels, name_overrides, remap_records = apply_label_remap(
+            point_labels, remap_config
+        )
+        label_names.update(name_overrides)
     keep_points = point_labels != args.ignore_label
     points = points[keep_points]
     point_labels = point_labels[keep_points]
@@ -222,6 +272,8 @@ def main() -> None:
         "status": "complete",
         "observations": str(observations_path),
         "semantic_labels": str(labels_path),
+        "label_remap": str(remap_path) if remap_path else None,
+        "label_remap_groups": remap_records,
         "voxel_size": args.voxel_size,
         "ignore_label": args.ignore_label,
         "min_voxel_points": args.min_voxel_points,

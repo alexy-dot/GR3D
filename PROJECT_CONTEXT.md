@@ -116,6 +116,9 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - The threshold-10 object-only render contains 332 voxels from 17 components and is the best initial presentation tradeoff for this one outdoor scene. It is not a cross-scene default.
 - A reusable trajectory audit is implemented in `reconstruction/analyze_camera_trajectory.py`. On OSI 0000, Pi3 path length is 1.877205 model units, endpoint displacement is 1.876864, straightness is 0.999818, and raw-XY heading change is 1.09 degrees. This agrees with the benchmark's `straight` trajectory answer.
 - Using OSI question index 9's 28.1 m trajectory length as a single scale anchor gives 14.9691 meters per Pi3 model unit. This calibrates scene 0000 only and is not independent metric validation or a scale-drift measurement.
+- `reconstruction/render_semantic_audit.py` now generates evaluation-only target-class overlays, a contact sheet, and per-frame pixel coverage without object IDs. On OSI 0000, bicycle is present in 6/8 sampled frames (9,323 pixels), minibike in 5/8 (12,182), and person in 8/8 (10,842).
+- The overlay audit shows temporal class flicker: the same parked two-wheelers alternate between ADE20K `bicycle` and `minibike`. This explains part of the 3D component fragmentation and demonstrates that semantic presence is not instance correspondence.
+- An optional, explicitly non-GR3D `--label-remap` extension is implemented in `build_semantic_voxels.py`. With only bicycle/minibike merged into `two_wheeler` at fixed voxel size 0.03 and threshold 10, total components drop from 62 to 60, two-wheeler components from 7 to 5, object-layer components from 17 to 15, and weighted purity rises from 0.9463 to 0.9488. The merge changes 5,552 of 13,653 matched observations.
 
 ### Paper-to-code coverage
 
@@ -188,10 +191,10 @@ After cloning on another machine, check out these revisions before reproducing t
 
 ## Exact next steps
 
-1. Match the threshold-10 object components on OSI 0000 back to the benchmark's tagged bicycle/minibike/person targets for evaluation only, without adding persistent IDs to the reconstruction representation.
+1. Build the first small OSI evaluation package with raw sampled frames, canonical layout view, original-ADE object view, merged-two-wheeler object view, QA metadata, and condition manifest. Do not include persistent IDs in the no-ID conditions.
 2. Monitor the official OSI release for the promised raw multimodal data. When calibration, timestamps, LiDAR, and IMU/GPS become available, add explicit sensor-to-camera alignment before claiming correct outdoor orientation or metric scale.
 3. Replace absolute model-unit voxel defaults with a declared scene-normalized pilot rule until metric scale is available; keep original Pi3 results labeled non-metric.
-4. Package raw frames, aligned layout/object views, questions, answers, and condition metadata for a small OSI evaluation subset. Retain raw-frame-only and ID-linked controls so the no-ID render hypothesis is directly testable.
+4. Define the first downstream comparison as raw-frame-only versus raw frames plus canonical layout/object views. Retain an ID-linked control only for diagnostic comparability; do not make it the proposed method.
 
 ## Handoff status
 

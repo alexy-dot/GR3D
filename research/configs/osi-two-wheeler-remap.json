@@ -1,0 +1,10 @@
+{
+  "description": "Practical extension for OSI outdoor pilots; keep separate from exact ADE20K/GR3D comparison.",
+  "groups": [
+    {
+      "name": "two_wheeler",
+      "target_label": 116,
+      "source_labels": [116, 127]
+    }
+  ]
+}
