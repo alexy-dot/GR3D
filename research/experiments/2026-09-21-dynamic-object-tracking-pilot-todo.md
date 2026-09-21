@@ -341,6 +341,8 @@ Primary references to inspect before implementation:
 
 ### Gate 1: finish the static representation result
 
+- [x] Prepare a deterministic answer-blind 60-request protocol for six conditions and ten questions.
+- [x] Implement strict prediction completeness checks plus exact/category/numerical-error diagnostics.
 - [ ] Run one fixed MLLM protocol on the prepared static conditions.
 - [ ] Determine whether no-ID semantics, 3D-only IDs or representative crops provide measurable value.
 - [ ] Record correspondence-specific failures that motivate dynamic tracking.

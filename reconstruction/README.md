@@ -304,3 +304,24 @@ For CUDA out-of-memory errors, first close browsers/games and retry with:
 
 Do not increase Windows virtual memory to treat GPU out-of-memory errors; system memory
 does not replace VRAM for this workload.
+
+Prepare the fixed answer-blind request manifest after validating the package:
+
+```bash
+python reconstruction/prepare_mllm_evaluation.py \
+  outputs/osi_0000_phase_b_package_hardened \
+  outputs/osi_0000_mllm_eval/requests.json
+```
+
+This creates 60 requests for the current six-condition, ten-question pilot. It records
+ordered image paths and hashes but never reads `ground_truth.json`. After a declared model
+adapter has saved one `{"request_id": ..., "answer": ...}` prediction per request, score it
+without claiming the diagnostic numerical metrics are the official OSI evaluator:
+
+```bash
+python reconstruction/score_mllm_evaluation.py \
+  outputs/osi_0000_mllm_eval/requests.json \
+  outputs/osi_0000_mllm_eval/predictions.json \
+  outputs/osi_0000_phase_b_package_hardened/ground_truth.json \
+  outputs/osi_0000_mllm_eval/scores.json
+```

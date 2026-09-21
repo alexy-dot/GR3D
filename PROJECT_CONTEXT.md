@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-21 (3D-only static ID representation and six-condition package verified)
+Last updated: 2026-09-21 (six-condition package hardened; answer-blind MLLM protocol prepared)
 
 ## Current objective
 
@@ -129,6 +129,8 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - One representative best-view crop per candidate is generated from point/pixel support without redrawing IDs on source frames. House and OSI each have four crops with small-dimension or low-support warnings. OSI crops preserve baked-in benchmark number tags, so the crop condition is not tag-free.
 - The hardened OSI Phase-B package has 51 hashed files, 10 questions, and six controlled conditions: raw only, RGB canonical, no-ID semantics, 3D-only IDs, 3D-only IDs plus crops, and a tagged diagnostic control. Package validation now proves that the no-ID and ID renders share the same voxel/object/camera sources and render settings; it also cross-checks scene/run/video hashes, component semantics, sample indices, original frame indices, timestamps, and a closed declared file set. Its manifest SHA-256 is `900e5281721496aa085d65db338fd67f290cc9781ab598422260c57a300698d3`.
 - Unmeasured Phase-A candidates now use `motion_state=uncertain`; `static` is reserved for a future result backed by motion evidence. The hardened OSI scene table SHA-256 is `f0098fe3637411e3f583f32733f8818fe17a07f305e800cc51a6d243b433210c`.
+- `reconstruction/prepare_mllm_evaluation.py` deterministically expands the six conditions and ten OSI questions into 60 answer-blind requests with fixed image ordering, hashes, timestamps, prompt, and zero-temperature protocol. The real OSI 0000 package passed an explicit check that neither `ground_truth.json` nor the withheld numerical answers entered the request file.
+- `reconstruction/score_mllm_evaluation.py` requires exactly one prediction per request and reports exact accuracy, category accuracy, and numerical MAE. These metrics are labeled project diagnostics rather than official OSI scoring until the benchmark's evaluator is integrated.
 
 ### Paper-to-code coverage
 
@@ -205,7 +207,7 @@ The executable task specification is `research/experiments/2026-09-21-3d-only-id
 
 The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. It specifies a dual-rate SAM 2/Pi3 pipeline, optional CoTracker3 motion evidence, background-normalized `S/D/U` classification, hybrid static-map/dynamic-track outputs, tests, controlled baselines, and the RTX 4060 execution policy. Phase-B package hardening is complete; dynamic work remains gated behind the fixed-protocol static-ID MLLM ablation.
 
-1. Define and run one fixed MLLM protocol on the six prepared OSI conditions; report category-level accuracy and correspondence-specific failures, and keep `ground_truth.json` outside prompts.
+1. Connect one declared vision-model API to the prepared 60-request blind protocol, save raw responses and model/version/decoding metadata, then report category-level accuracy and correspondence-specific failures. Keep `ground_truth.json` inaccessible to the inference process.
 2. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 3. Only after the static-ID ablation result, start the separate dynamic pilot: track masks, estimate camera-compensated world-frame centers, classify `static/dynamic/uncertain` from motion evidence, and store `D###` states outside the static cloud.
 4. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
