@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-20 (first OSI no-ID evaluation package verified)
+Last updated: 2026-09-21 (3D-only scene IDs approved as the next representation pilot)
 
 ## Current objective
 
@@ -48,6 +48,8 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 7. **Do not maintain persistent object IDs over unbounded video.** The expected annotation and data-association burden is incompatible with the target of long, real-world streams.
 8. **Evaluate canonical 3D renders as the alternative interface.** The proposed downstream input is a small set of original frames plus axis-aligned XY/XZ/YZ renders of the reconstructed scene, optionally including color, camera frusta, coordinates, or depth. This must be labeled as an extension rather than exact GR3D.
 9. **Treat object correspondence as an empirical question.** A model may infer that a coarse 3D cluster corresponds to an object in a source image from appearance and geometry, but this is not guaranteed without IDs. The evaluation must separately measure spatial reasoning and 2D-to-3D correspondence.
+10. **Add IDs in the 3D representation without redrawing them on every source frame.** Static scene instances should receive deterministic `S###` IDs in the 3D views and object table. Original frames remain unchanged. This is a middle condition between no-ID views and full GR3D image-to-geometry ID projection.
+11. **Represent dynamics separately from the persistent static map.** Do not fuse confirmed moving-object points into the static map. Use `D###` for time-indexed dynamic tracks and `U###` for components whose motion state is not yet supported by enough evidence. Semantic category alone must not decide whether an object is moving.
 
 ## Implemented state
 
@@ -117,7 +119,7 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - A reusable trajectory audit is implemented in `reconstruction/analyze_camera_trajectory.py`. On OSI 0000, Pi3 path length is 1.877205 model units, endpoint displacement is 1.876864, straightness is 0.999818, and raw-XY heading change is 1.09 degrees. This agrees with the benchmark's `straight` trajectory answer.
 - Using OSI question index 9's 28.1 m trajectory length as a single scale anchor gives 14.9691 meters per Pi3 model unit. This calibrates scene 0000 only and is not independent metric validation or a scale-drift measurement.
 - `reconstruction/render_semantic_audit.py` now generates evaluation-only target-class overlays, a contact sheet, and per-frame pixel coverage without object IDs. On OSI 0000, bicycle is present in 6/8 sampled frames (9,323 pixels), minibike in 5/8 (12,182), and person in 8/8 (10,842).
-- The overlay audit shows temporal class flicker: the same parked two-wheelers alternate between ADE20K `bicycle` and `minibike`. This explains part of the 3D component fragmentation and demonstrates that semantic presence is not instance correspondence.
+- Visual inspection of the overlay audit suggests that corresponding parked two-wheeler regions alternate between ADE20K `bicycle` and `minibike` across views. No stable instance tracker is present, so this is evidence of cross-view semantic instability, not proof that the algorithm identified the same physical object.
 - An optional, explicitly non-GR3D `--label-remap` extension is implemented in `build_semantic_voxels.py`. With only bicycle/minibike merged into `two_wheeler` at fixed voxel size 0.03 and threshold 10, total components drop from 62 to 60, two-wheeler components from 7 to 5, object-layer components from 17 to 15, and weighted purity rises from 0.9463 to 0.9488. The merge changes 5,552 of 13,653 matched observations.
 - The first OSI evaluation package is now generated from scene 0000 by `reconstruction/prepare_osi_pilot_package.py` and independently checked by `reconstruction/validate_osi_pilot_package.py`. It contains 8 exact sampled frames, 12 canonical/semantic views, 10 no-ID questions, separated ground truth, and four declared comparison conditions. Validation passed for 24 hashed input/metadata files; the complete ignored package is 3.7 MiB.
 - The four first-version conditions are raw frames only, raw plus unmodified-ADE layout/object views, raw plus the optional two-wheeler-merged views, and a tagged-question diagnostic control. Answers are not present in either question file. Source frames may still contain benchmark number tags baked into the pixels, which is recorded as a limitation rather than silently treated as no-ID imagery.
@@ -194,10 +196,15 @@ After cloning on another machine, check out these revisions before reproducing t
 
 ## Exact next steps
 
-1. Run the prepared four-condition package through one fixed MLLM/evaluation protocol and report per-category accuracy, not only overall accuracy. Keep `ground_truth.json` outside the model prompt.
-2. Add a visual-tag-free frame condition if the baked-in OSI number tags materially confound the no-ID hypothesis; do not describe simple question-text stripping as a completely ID-free benchmark.
-3. Monitor the official OSI release for the promised raw multimodal data. When calibration, timestamps, LiDAR, and IMU/GPS become available, add explicit sensor-to-camera alignment before claiming correct outdoor orientation or metric scale.
-4. Replace absolute model-unit voxel defaults with a declared scene-normalized pilot rule before expanding across scenes; keep original Pi3 results labeled non-metric.
+The executable task specification is `research/experiments/2026-09-21-3d-only-id-dynamic-map-todo.md`.
+
+1. Implement deterministic static scene IDs (`S001`, `S002`, ...) from the existing `objects.json` components and render them only in 3D views. Do not modify the original input frames.
+2. Export a machine-readable scene-instance table containing ID, semantic label, center, bounding box, confidence evidence, and the source component. Validate one-to-one consistency between rendered IDs and table entries.
+3. Build controlled package conditions for raw frames, no-ID 3D views, 3D-only IDs, and 3D-only IDs plus one representative crop per instance. Keep the current full/tagged condition only as a diagnostic control.
+4. Validate the static-ID implementation on both the house pilot and OSI scene 0000 before introducing tracking. Do not describe connected semantic components as verified physical instances.
+5. After the static-ID ablation is prepared, run one fixed MLLM/evaluation protocol and report per-category accuracy. Keep `ground_truth.json` outside the model prompt.
+6. Only then start a separate dynamic pilot: track object masks across frames, transform their 3D centers into the common world frame, classify them as static/dynamic/uncertain from camera-compensated motion evidence, and store dynamic objects as trajectories rather than fusing them into the static cloud.
+7. Long-video overlapping-window association remains a later phase. Stable IDs across windows require explicit matching and must not be inferred from per-run component numbers.
 
 ## Handoff status
 
