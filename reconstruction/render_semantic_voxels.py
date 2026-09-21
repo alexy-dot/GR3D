@@ -260,9 +260,17 @@ def main() -> None:
             for value in np.unique(semantic_ids)
         },
         "min_component_points": args.min_component_points,
+        "marker_size": args.marker_size,
         "voxel_count": int(len(centers)),
         "component_count": int(len(np.unique(component_ids))),
+        "rendered_component_ids": sorted(int(value) for value in np.unique(component_ids)),
         "semantic_class_count": int(len(np.unique(semantic_ids))),
+        "voxels_sha256": hashlib.sha256(voxels_path.read_bytes()).hexdigest(),
+        "camera_poses_sha256": hashlib.sha256(poses_path.read_bytes()).hexdigest(),
+        "objects_json_sha256": (
+            hashlib.sha256(objects_json.read_bytes()).hexdigest()
+            if objects_json.is_file() else None
+        ),
         "alignment": alignment,
         "clip_percentile": args.clip_percentile,
         "bounds_xyz": bounds.tolist(),

@@ -41,7 +41,7 @@ Original Pi3 is retained as the GR3D-comparable geometry baseline. The optional 
 
 Answers are stored separately in `ground_truth.json`. Every copied input is fingerprinted in `package_manifest.json`.
 
-The generated scene 0000 Phase-B package is 4.2 MiB. Its validator passed with 47 hashed input/metadata files, 10 questions, and all six conditions. The package itself remains under ignored `outputs/`; the repository stores the reproducible builders, validator, experiment record, and exact configuration rather than generated media.
+The hardened scene 0000 Phase-B package validator passed with 51 hashed input/metadata files, 10 questions, and all six conditions. It verifies equal no-ID/ID geometry and render settings, shared scene/run/video provenance, crop-to-component identity, original frame indices and timestamps, and a closed declared file set. The package itself remains under ignored `outputs/`; the repository stores the reproducible builders, validator, experiment record, and exact configuration rather than generated media.
 
 ## What this first version does not prove
 

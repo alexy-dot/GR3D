@@ -84,7 +84,7 @@ def assign_scene_ids(
                 "mean_voxel_purity": float(item["mean_voxel_purity"]),
                 "max_view_support": int(item["max_view_support"]),
                 "multiview_voxel_ratio": float(item["multiview_voxel_ratio"]),
-                "motion_state": "static",
+                "motion_state": "uncertain",
                 "motion_evidence": "not_measured_phase_a_static_candidate",
             }
         )
@@ -131,6 +131,18 @@ def main() -> None:
     source = args.objects.expanduser().resolve()
     output = args.output.expanduser().resolve()
     payload = json.loads(source.read_text(encoding="utf-8"))
+    source_manifest = payload.get("manifest", {})
+    observations_path = (
+        Path(source_manifest["observations"])
+        if source_manifest.get("observations") else None
+    )
+    run_manifest_path = observations_path.parent / "manifest.json" if observations_path else None
+    run_manifest = (
+        json.loads(run_manifest_path.read_text(encoding="utf-8"))
+        if run_manifest_path and run_manifest_path.is_file()
+        else None
+    )
+    source_video = Path(run_manifest["input"]) if run_manifest and run_manifest.get("input") else None
     instances = assign_scene_ids(
         payload["objects"], args.scene_id, args.center_quantization, args.layer
     )
@@ -143,6 +155,15 @@ def main() -> None:
             "layer": args.layer,
             "candidate_count": len(instances),
             "source_objects_sha256": sha256(source),
+            "source_observations_sha256": (
+                sha256(observations_path) if observations_path and observations_path.is_file() else None
+            ),
+            "source_run_manifest_sha256": (
+                sha256(run_manifest_path) if run_manifest_path and run_manifest_path.is_file() else None
+            ),
+            "source_video_sha256": (
+                sha256(source_video) if source_video and source_video.is_file() else None
+            ),
             "source_object_count": len(payload["objects"]),
             "sort_key": "semantic_name_casefold, semantic_label, quantized_center_xyz, component_id",
             "center_quantization": args.center_quantization,
@@ -155,7 +176,7 @@ def main() -> None:
             "warning": (
                 "S### records are deterministic semantic-component candidates within one "
                 "bounded run, not verified physical instances or cross-window identities. "
-                "Static motion state is a Phase-A assumption without tracking evidence."
+                "Motion state remains uncertain until tracking evidence is measured."
             ),
         },
         "scene_instances": instances,

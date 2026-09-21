@@ -43,6 +43,7 @@ class SceneInstanceTests(unittest.TestCase):
         second = assign_scene_ids(list(reversed(copy.deepcopy(rows))), "test", 1e-6)
         self.assertEqual(first, second)
         self.assertEqual([row["scene_instance_id"] for row in first], ["S001", "S002"])
+        self.assertTrue(all(row["motion_state"] == "uncertain" for row in first))
 
     def test_layout_components_are_excluded_by_default(self) -> None:
         rows = [candidate(1, "floor", [0, 0, 0]), candidate(2, "chair", [1, 0, 0])]

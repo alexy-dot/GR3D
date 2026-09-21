@@ -52,12 +52,18 @@ def copy_file(source: Path, destination: Path, manifest_path: Path) -> dict[str,
     }
 
 
+def ensure_fresh_output(output: Path) -> None:
+    if output.exists() and any(output.iterdir()):
+        raise ValueError(f"output directory is not empty: {output}")
+    output.mkdir(parents=True, exist_ok=True)
+
+
 def main() -> None:
     args = parse_args()
     run = args.run_directory.expanduser().resolve()
     qa_path = args.qa_json.expanduser().resolve()
     output = args.output.expanduser().resolve()
-    output.mkdir(parents=True, exist_ok=True)
+    ensure_fresh_output(output)
 
     qa_rows = json.loads(qa_path.read_text(encoding="utf-8"))
     if not isinstance(qa_rows, list) or not qa_rows:
@@ -91,6 +97,7 @@ def main() -> None:
         "objects_two_wheeler_merged": args.merged_object_views.expanduser().resolve(),
     }
     views: dict[str, list[str]] = {}
+    view_manifests: dict[str, str] = {}
     for set_name, source_dir in view_sets.items():
         source_names = (
             [f"view_{axis}.png" for axis in ("xy", "xz", "yz")]
@@ -102,6 +109,17 @@ def main() -> None:
             relative = Path("inputs") / "views" / set_name / f"{axis}.png"
             files.append(copy_file(source_dir / source_name, output / relative, relative))
             views[set_name].append(relative.as_posix())
+        render_manifest_source = source_dir / "render_manifest.json"
+        if render_manifest_source.is_file():
+            relative_manifest = Path("inputs") / "views" / set_name / "render_manifest.json"
+            files.append(
+                copy_file(
+                    render_manifest_source,
+                    output / relative_manifest,
+                    relative_manifest,
+                )
+            )
+            view_manifests[set_name] = relative_manifest.as_posix()
 
     phase_b_values = (
         args.scene_id_views, args.scene_instances, args.representative_crops
@@ -135,6 +153,7 @@ def main() -> None:
                 scene_render_manifest_relative,
             )
         )
+        view_manifests["objects_3d_only_ids"] = scene_render_manifest_relative.as_posix()
 
         scene_instances_relative = Path("inputs") / "scene" / "scene_instances.json"
         files.append(
@@ -205,6 +224,7 @@ def main() -> None:
             "frames": [item["path"] for item in frames],
             "views": views["layout_semantic"] + views["objects_ade20k"],
             "questions": "questions_no_ids.json",
+            "object_view_manifest": view_manifests.get("objects_ade20k"),
         },
     }
     if phase_b:
@@ -257,8 +277,9 @@ def main() -> None:
     manifest = {
         "status": "complete",
         "scene_id": args.scene_id,
-        "purpose": "first_version_no_id_3d_view_evaluation_package",
+        "purpose": "phase_b_3d_scene_id_evaluation_package",
         "source_video_sha256": sha256(Path(run_manifest["input"])),
+        "source_run_manifest_sha256": sha256(run / "manifest.json"),
         "reconstruction_manifest": run_manifest,
         "frames": frames,
         "views": views,

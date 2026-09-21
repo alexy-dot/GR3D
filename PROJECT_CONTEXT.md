@@ -127,7 +127,8 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - `render_semantic_voxels.py --scene-instances` renders those IDs only in the aligned 3D views, with leader lines and a readable side legend. The manifest validates complete table/render ID agreement and records `source_frames_modified=false`.
 - House and OSI 0000 were both validated. House exports 14 candidates and OSI exports 17; repeated exports produced byte-identical SHA-256 files. The views were visually inspected rather than accepted from manifests alone.
 - One representative best-view crop per candidate is generated from point/pixel support without redrawing IDs on source frames. House and OSI each have four crops with small-dimension or low-support warnings. OSI crops preserve baked-in benchmark number tags, so the crop condition is not tag-free.
-- The updated OSI Phase-B package is 4.2 MiB with 47 hashed files, 10 questions, and six controlled conditions: raw only, RGB canonical, no-ID semantics, 3D-only IDs, 3D-only IDs plus crops, and a tagged diagnostic control. Package validation checks answer separation, shared frames/questions, scene-table/render/crop identity, render parameters, and all hashes.
+- The hardened OSI Phase-B package has 51 hashed files, 10 questions, and six controlled conditions: raw only, RGB canonical, no-ID semantics, 3D-only IDs, 3D-only IDs plus crops, and a tagged diagnostic control. Package validation now proves that the no-ID and ID renders share the same voxel/object/camera sources and render settings; it also cross-checks scene/run/video hashes, component semantics, sample indices, original frame indices, timestamps, and a closed declared file set. Its manifest SHA-256 is `900e5281721496aa085d65db338fd67f290cc9781ab598422260c57a300698d3`.
+- Unmeasured Phase-A candidates now use `motion_state=uncertain`; `static` is reserved for a future result backed by motion evidence. The hardened OSI scene table SHA-256 is `f0098fe3637411e3f583f32733f8818fe17a07f305e800cc51a6d243b433210c`.
 
 ### Paper-to-code coverage
 
@@ -202,7 +203,7 @@ After cloning on another machine, check out these revisions before reproducing t
 
 The executable task specification is `research/experiments/2026-09-21-3d-only-id-dynamic-map-todo.md`.
 
-The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. It specifies a dual-rate SAM 2/Pi3 pipeline, optional CoTracker3 motion evidence, background-normalized `S/D/U` classification, hybrid static-map/dynamic-track outputs, tests, controlled baselines, and the RTX 4060 execution policy. It remains gated behind GitHub Issue #1 and the fixed-protocol static-ID MLLM ablation.
+The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. It specifies a dual-rate SAM 2/Pi3 pipeline, optional CoTracker3 motion evidence, background-normalized `S/D/U` classification, hybrid static-map/dynamic-track outputs, tests, controlled baselines, and the RTX 4060 execution policy. Phase-B package hardening is complete; dynamic work remains gated behind the fixed-protocol static-ID MLLM ablation.
 
 1. Define and run one fixed MLLM protocol on the six prepared OSI conditions; report category-level accuracy and correspondence-specific failures, and keep `ground_truth.json` outside prompts.
 2. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.

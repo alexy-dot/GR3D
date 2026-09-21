@@ -335,9 +335,9 @@ Primary references to inspect before implementation:
 
 ### Gate 0: repair current Phase-B package
 
-- [ ] Close GitHub Issue #1.
-- [ ] Remove unsupported `motion_state=static` from unmeasured Phase-A candidates.
-- [ ] Revalidate the six-condition package and documentation.
+- [ ] Close GitHub Issue #1 after the hardening commit is pushed.
+- [x] Remove unsupported `motion_state=static` from unmeasured Phase-A candidates.
+- [x] Revalidate the six-condition package and documentation (51 hashed files; 10 questions; 6 conditions).
 
 ### Gate 1: finish the static representation result
 

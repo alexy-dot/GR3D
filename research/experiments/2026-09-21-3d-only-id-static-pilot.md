@@ -1,7 +1,7 @@
 # 3D-only static candidate ID pilot
 
 - Date: 2026-09-21
-- Status: Phase A and Phase-B input preparation verified
+- Status: Phase A and hardened Phase-B input preparation verified; MLLM evaluation not started
 - Scope: deterministic `S###` candidate IDs inside one bounded reconstruction run; no source-frame ID overlays and no cross-window persistence claim
 
 ## Implementation
@@ -19,13 +19,13 @@
 | Pi3 house | voxel 0.03, 30 voxels/component, object layer | 14 | 4/14 | repeated export SHA-256 identical |
 | OSI 0000 | voxel 0.03, 10 voxels/component, object layer | 17 | 4/17 | repeated export SHA-256 identical |
 
-With the final exporter fingerprint embedded, the house scene table SHA-256 is `3cb42a23c23074859eac18071a549187f896ce260e140fef0041511da45659fc`; OSI 0000 is `84a385c80c68f974151ce65c4cce74bd64510a008f71e3599f40e00a938ba2cb`. Pre-finalization repeat runs were byte-identical; the final tables additionally record the exact exporter file hash so copied-script runs remain auditable even when the surrounding WSL checkout is older.
+Earlier deterministic tables were byte-identical under repeat runs. After provenance hardening and removal of the unsupported static assumption, the regenerated OSI 0000 scene table SHA-256 is `f0098fe3637411e3f583f32733f8818fe17a07f305e800cc51a6d243b433210c`. The table records the exact exporter file hash so copied-script runs remain auditable even when the surrounding WSL checkout is older.
 
 Visual inspection confirmed that ID labels occur in the new 3D views and not on generated copies of source frames. The OSI object view remains sparse and some labels are close together, but the side legend remains readable and preserves the one-to-one mapping.
 
 ## Controlled OSI package
 
-The ignored `outputs/osi_0000_phase_b_package` is 4.2 MiB and contains 47 hashed files, 10 questions, and six conditions. Its final package-manifest SHA-256 is `c2811654909a1a9552cc95cf1a1b586b7017ae60dea112356dba8bbba1bd0c4c`:
+The ignored hardened package `outputs/osi_0000_phase_b_package_hardened` contains 51 hashed files, 10 questions, and six conditions. Its package-manifest SHA-256 is `900e5281721496aa085d65db338fd67f290cc9781ab598422260c57a300698d3`:
 
 1. raw frames only;
 2. raw frames plus RGB canonical views;
@@ -34,12 +34,12 @@ The ignored `outputs/osi_0000_phase_b_package` is 4.2 MiB and contains 47 hashed
 5. the same 3D-only ID representation plus one representative crop per candidate;
 6. tagged-question diagnostic control.
 
-Validation enforces identical sampled frames and questions across experimental conditions, answer separation, scene-table/crop one-to-one correspondence, crop hashes, declared file hashes, and no absolute package paths.
+Validation enforces identical sampled frames and questions across experimental conditions, answer separation, no-ID/ID render equality except annotations and the scene table, reconstruction/video/voxel/object/camera provenance, scene-table/crop component and semantic identity, correct sampled versus original frame indices and timestamps, crop hashes, and an exact closed set of declared files. Package creation refuses a non-empty output directory so stale artifacts cannot be silently mixed into a run.
 
 ## Limitations and decision
 
 - `S###` denotes a semantic connected-component candidate, not a verified physical instance.
-- `motion_state=static` is a Phase-A assumption and is explicitly paired with `motion_evidence=not_measured_phase_a_static_candidate`.
+- Unmeasured candidates use `motion_state=uncertain` with `motion_evidence=not_measured_phase_a_static_candidate`; no static/dynamic claim is made without measurements.
 - Four crops in each pilot trigger small-dimension or low-support warnings.
 - OSI number tags baked into source pixels remain visible in some crops and are a correspondence confound. This crop condition must not be described as tag-free.
 - No MLLM accuracy result exists yet. Do not start dynamic `D###/U###` work until the fixed-protocol static-ID ablation is run, as required by the approved plan.

@@ -9,12 +9,133 @@ import json
 from pathlib import Path
 
 
+COMMON_RENDER_KEYS = (
+    "color_by",
+    "style",
+    "layer",
+    "layout_class_policy",
+    "retained_semantic_labels",
+    "min_component_points",
+    "marker_size",
+    "voxel_count",
+    "component_count",
+    "rendered_component_ids",
+    "semantic_class_count",
+    "voxels_sha256",
+    "camera_poses_sha256",
+    "objects_json_sha256",
+    "alignment",
+    "clip_percentile",
+    "bounds_xyz",
+)
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def validate_render_pair(
+    no_id_render: dict[str, object], id_render: dict[str, object]
+) -> None:
+    missing = [
+        key for key in COMMON_RENDER_KEYS
+        if key not in no_id_render or key not in id_render
+    ]
+    if missing:
+        raise ValueError(f"render manifests lack controlled-comparison fields: {missing}")
+    mismatched = [
+        key for key in COMMON_RENDER_KEYS
+        if no_id_render[key] != id_render[key]
+    ]
+    if mismatched:
+        raise ValueError(f"no-ID and 3D-ID render bases differ: {mismatched}")
+    if no_id_render.get("representation") != "no_id_semantic_voxel_blocks":
+        raise ValueError("no-ID render manifest has the wrong representation")
+    if id_render.get("representation") != "3d_only_scene_id_component_candidates":
+        raise ValueError("3D-ID render manifest has the wrong representation")
+    if no_id_render.get("rendered_ids"):
+        raise ValueError("no-ID render manifest unexpectedly contains rendered IDs")
+
+
+def validate_declared_file_set(declared: set[str], actual: set[str]) -> None:
+    """Require the package to contain exactly its declared closed file set."""
+    if actual != declared:
+        raise ValueError(
+            "package contains undeclared or missing files; "
+            f"extra={sorted(actual - declared)}, missing={sorted(declared - actual)}"
+        )
+
+
+def validate_scene_relationships(
+    package_manifest: dict[str, object],
+    scene_payload: dict[str, object],
+    no_id_render: dict[str, object],
+    id_render: dict[str, object],
+    crop_payload: dict[str, object],
+    frames: list[dict[str, object]],
+    packaged_scene_sha256: str,
+) -> None:
+    validate_render_pair(no_id_render, id_render)
+    scene_manifest = scene_payload["manifest"]
+    crop_manifest = crop_payload["manifest"]
+    if package_manifest["scene_id"] != scene_manifest["scene_id"]:
+        raise ValueError("package and scene table use different scene IDs")
+    if crop_manifest.get("scene_id") != scene_manifest["scene_id"]:
+        raise ValueError("crop catalog and scene table use different scene IDs")
+    if id_render.get("scene_instances_sha256") != packaged_scene_sha256:
+        raise ValueError("3D-ID render manifest references a different scene table")
+    if crop_manifest.get("scene_instances_sha256") != packaged_scene_sha256:
+        raise ValueError("crop catalog references a different scene table")
+    if no_id_render["objects_json_sha256"] != scene_manifest.get("source_objects_sha256"):
+        raise ValueError("render and scene table use different semantic objects")
+    if scene_manifest.get("source_observations_sha256") != crop_manifest.get(
+        "point_observations_sha256"
+    ):
+        raise ValueError("scene table and crops use different point observations")
+    if package_manifest.get("source_run_manifest_sha256") != scene_manifest.get(
+        "source_run_manifest_sha256"
+    ) or package_manifest.get("source_run_manifest_sha256") != crop_manifest.get(
+        "source_run_manifest_sha256"
+    ):
+        raise ValueError("package, scene table, and crops use different reconstruction runs")
+    if package_manifest.get("source_video_sha256") != scene_manifest.get(
+        "source_video_sha256"
+    ) or package_manifest.get("source_video_sha256") != crop_manifest.get(
+        "source_video_sha256"
+    ):
+        raise ValueError("package, scene table, and crops use different source videos")
+
+    table_by_id = {
+        str(item["scene_instance_id"]): item
+        for item in scene_payload["scene_instances"]
+    }
+    for item in table_by_id.values():
+        if item.get("motion_state") == "static" and item.get("motion_evidence") == (
+            "not_measured_phase_a_static_candidate"
+        ):
+            raise ValueError("unmeasured scene candidate is falsely marked static")
+    crop_ids = [str(item["scene_instance_id"]) for item in crop_payload["crops"]]
+    if len(crop_ids) != len(set(crop_ids)):
+        raise ValueError("representative crop catalog contains duplicate scene IDs")
+    if set(table_by_id) != set(crop_ids):
+        raise ValueError("scene-instance table and representative crop IDs disagree")
+    for crop in crop_payload["crops"]:
+        table = table_by_id[str(crop["scene_instance_id"])]
+        for key in ("source_component_id", "semantic_label", "semantic_name"):
+            if crop.get(key) != table.get(key):
+                raise ValueError(f"crop/table identity mismatch for {crop['scene_instance_id']}: {key}")
+        sample_index = int(crop["sample_index"])
+        if sample_index < 0 or sample_index >= len(frames):
+            raise ValueError("crop sample index is outside the packaged frame list")
+        frame = frames[sample_index]
+        if int(crop["source_frame_index"]) != int(frame["source_frame_index"]):
+            raise ValueError("crop original source-frame index does not match package")
+        if crop.get("timestamp_seconds") != frame.get("timestamp_seconds"):
+            raise ValueError("crop timestamp does not match package frame metadata")
 
 
 def main() -> None:
@@ -72,16 +193,30 @@ def main() -> None:
             raise ValueError("crop condition changed the 3D-ID representation")
         scene_payload = json.loads((root / ids["scene_instances"]).read_text(encoding="utf-8"))
         render_payload = json.loads((root / ids["view_manifest"]).read_text(encoding="utf-8"))
+        no_id_manifest_path = no_id.get("object_view_manifest")
+        if not no_id_manifest_path:
+            raise ValueError("no-ID condition lacks its object render manifest")
+        no_id_render_payload = json.loads(
+            (root / no_id_manifest_path).read_text(encoding="utf-8")
+        )
         catalog_path = root / crops["representative_crop_catalog"]
         crop_payload = json.loads(catalog_path.read_text(encoding="utf-8"))
         table_ids = {
             str(item["scene_instance_id"])
             for item in scene_payload["scene_instances"]
         }
+        scene_table_hash = sha256(root / ids["scene_instances"])
+        validate_scene_relationships(
+            manifest,
+            scene_payload,
+            no_id_render_payload,
+            render_payload,
+            crop_payload,
+            manifest["frames"],
+            scene_table_hash,
+        )
         if set(render_payload.get("rendered_ids", [])) != table_ids:
             raise ValueError("3D-ID render manifest and scene table disagree")
-        if render_payload.get("scene_instances_sha256") != sha256(root / ids["scene_instances"]):
-            raise ValueError("3D-ID render manifest references a different scene table")
         crop_ids = [str(item["scene_instance_id"]) for item in crop_payload["crops"]]
         if len(crop_ids) != len(set(crop_ids)):
             raise ValueError("representative crop catalog contains duplicate scene IDs")
@@ -110,6 +245,15 @@ def main() -> None:
             raise ValueError(f"size mismatch: {relative}")
         if sha256(path) != record["sha256"]:
             raise ValueError(f"SHA-256 mismatch: {relative}")
+
+    declared = {str(Path(record["path"]).as_posix()) for record in manifest.get("files", [])}
+    declared.add("package_manifest.json")
+    actual = {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+    validate_declared_file_set(declared, actual)
 
     print(
         f"Valid package: {len(manifest['files'])} hashed files, "
