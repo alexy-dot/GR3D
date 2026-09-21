@@ -202,6 +202,8 @@ After cloning on another machine, check out these revisions before reproducing t
 
 The executable task specification is `research/experiments/2026-09-21-3d-only-id-dynamic-map-todo.md`.
 
+The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. It specifies a dual-rate SAM 2/Pi3 pipeline, optional CoTracker3 motion evidence, background-normalized `S/D/U` classification, hybrid static-map/dynamic-track outputs, tests, controlled baselines, and the RTX 4060 execution policy. It remains gated behind GitHub Issue #1 and the fixed-protocol static-ID MLLM ablation.
+
 1. Define and run one fixed MLLM protocol on the six prepared OSI conditions; report category-level accuracy and correspondence-specific failures, and keep `ground_truth.json` outside prompts.
 2. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 3. Only after the static-ID ablation result, start the separate dynamic pilot: track masks, estimate camera-compensated world-frame centers, classify `static/dynamic/uncertain` from motion evidence, and store `D###` states outside the static cloud.

@@ -98,6 +98,12 @@ Minimum dynamic pilot:
 
 Do not classify motion from semantic category alone. A parked vehicle can be static during the observation interval, while normally static furniture may move.
 
+The detailed executable design, artifact schemas, model candidates, validation gates, RTX 4060 execution policy, controlled comparisons, and ordered checklist are maintained in:
+
+- `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`
+
+That document does not change the current priority gate: repair GitHub Issue #1 and finish the fixed-protocol static-ID MLLM ablation before treating the dynamic pilot as the active experimental result.
+
 ## Phase D: long-video persistence
 
 After the bounded static and dynamic pilots work, extend to overlapping reconstruction windows.
