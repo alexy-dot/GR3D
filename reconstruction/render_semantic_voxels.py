@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import colorsys
+import hashlib
 import json
 from pathlib import Path
 
@@ -16,6 +17,7 @@ import numpy as np
 from matplotlib.patches import Rectangle
 
 from render_canonical_views import camera_gravity_alignment
+from export_scene_instances import validate_rendered_ids
 
 
 LAYOUT_CLASSES = {
@@ -37,6 +39,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--style", choices=("voxels", "boxes", "both"), default="both")
     parser.add_argument("--min-component-points", type=int, default=0)
     parser.add_argument("--objects-json", type=Path)
+    parser.add_argument(
+        "--scene-instances", type=Path,
+        help="Optional scene_instances.json; adds S### labels only to these 3D renders",
+    )
     parser.add_argument("--layer", choices=("all", "layout", "objects"), default="all")
     parser.add_argument("--clip-percentile", type=float, default=1.0)
     parser.add_argument("--marker-size", type=float, default=4.0)
@@ -64,6 +70,7 @@ def render(
     marker_size: float,
     component_ids: np.ndarray,
     style: str,
+    annotations: dict[int, tuple[str, str, np.ndarray]] | None = None,
 ) -> None:
     first, second = axes
     fig, axis = plt.subplots(figsize=(8, 8), dpi=180)
@@ -101,7 +108,35 @@ def render(
     axis.set_title(f"No-ID semantic voxel blocks: {labels[0]}-{labels[1]}")
     axis.grid(True, color="0.85", linewidth=0.5)
     axis.legend(loc="best", fontsize=8)
-    fig.tight_layout()
+    if annotations:
+        for order, component_id in enumerate(sorted(annotations)):
+            scene_id, _, position = annotations[component_id]
+            offset = (7 + (order % 3) * 5, 7 + ((order // 3) % 3) * 5)
+            axis.annotate(
+                scene_id,
+                xy=(position[first], position[second]),
+                xytext=offset,
+                textcoords="offset points",
+                fontsize=6.5,
+                fontweight="bold",
+                color="black",
+                bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "black", "alpha": 0.9},
+                arrowprops={"arrowstyle": "-", "color": "0.25", "lw": 0.45},
+            )
+        legend = "\n".join(
+            f"{scene_id}  {semantic_name}"
+            for _, (scene_id, semantic_name, _) in sorted(
+                annotations.items(), key=lambda item: item[1][0]
+            )
+        )
+        fig.text(
+            0.805, 0.5, legend, ha="left", va="center", fontsize=6.2,
+            family="monospace", bbox={"boxstyle": "round", "fc": "white", "ec": "0.7"},
+        )
+        axis.set_title(f"3D-only scene IDs: {labels[0]}-{labels[1]}")
+        fig.tight_layout(rect=(0, 0, 0.79, 1))
+    else:
+        fig.tight_layout()
     fig.savefig(output, bbox_inches="tight")
     plt.close(fig)
 
@@ -131,6 +166,17 @@ def main() -> None:
         for item in payload.get("objects", []):
             if item.get("semantic_name"):
                 semantic_names[int(item["semantic_label"])] = item["semantic_name"]
+    scene_instances_path = (
+        args.scene_instances.expanduser().resolve() if args.scene_instances else None
+    )
+    scene_instances: list[dict[str, object]] = []
+    component_to_instance: dict[int, dict[str, object]] = {}
+    if scene_instances_path:
+        scene_payload = json.loads(scene_instances_path.read_text(encoding="utf-8"))
+        scene_instances = scene_payload["scene_instances"]
+        component_to_instance = {
+            int(item["source_component_id"]): item for item in scene_instances
+        }
     if args.layer != "all":
         is_layout = np.asarray(
             [semantic_names.get(int(value), "") in LAYOUT_CLASSES for value in semantic_ids]
@@ -157,6 +203,28 @@ def main() -> None:
     origin, basis, alignment = camera_gravity_alignment(centers, poses)
     aligned_centers = (centers - origin) @ basis
     cameras = (poses[:, :3, 3] - origin) @ basis
+    annotations = None
+    if scene_instances_path:
+        surviving_components = {int(value) for value in np.unique(component_ids)}
+        table_components = set(component_to_instance)
+        if surviving_components != table_components:
+            missing = sorted(table_components - surviving_components)
+            extra = sorted(surviving_components - table_components)
+            raise ValueError(
+                f"scene table/render component mismatch; missing={missing}, extra={extra}"
+            )
+        annotations = {}
+        for component_id, item in component_to_instance.items():
+            raw_center = np.asarray(item["center_xyz"], dtype=np.float64)
+            aligned_center = (raw_center - origin) @ basis
+            annotations[component_id] = (
+                str(item["scene_instance_id"]),
+                str(item.get("semantic_name") or item["semantic_label"]),
+                aligned_center,
+            )
+        validate_rendered_ids(
+            scene_instances, [value[0] for value in annotations.values()]
+        )
     color_ids = component_ids if args.color_by == "component" else semantic_ids
     colors = palette(color_ids)
 
@@ -174,12 +242,15 @@ def main() -> None:
         render(
             aligned_centers, colors, cameras, axes, labels, bounds,
             output_dir / f"object_blocks_{name}.png", args.marker_size,
-            component_ids, args.style
+            component_ids, args.style, annotations
         )
 
     manifest = {
         "status": "complete",
-        "representation": "no_id_semantic_voxel_blocks",
+        "representation": (
+            "3d_only_scene_id_component_candidates"
+            if scene_instances_path else "no_id_semantic_voxel_blocks"
+        ),
         "color_by": args.color_by,
         "style": args.style,
         "layer": args.layer,
@@ -197,6 +268,24 @@ def main() -> None:
         "bounds_xyz": bounds.tolist(),
         "outputs": [f"object_blocks_{name}.png" for name in specs],
     }
+    if scene_instances_path:
+        manifest.update(
+            {
+                "scene_instances_sha256": hashlib.sha256(
+                    scene_instances_path.read_bytes()
+                ).hexdigest(),
+                "rendered_ids": sorted(
+                    (value[0] for value in annotations.values()),
+                    key=lambda value: int(value[1:]),
+                ),
+                "id_placement": "aligned component center with leader line and side legend",
+                "source_frames_modified": False,
+                "candidate_warning": (
+                    "Rendered S### labels identify semantic component candidates within this "
+                    "bounded run; they are not verified physical instances."
+                ),
+            }
+        )
     (output_dir / "render_manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
     )

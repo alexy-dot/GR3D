@@ -1,7 +1,7 @@
 # 3D-only scene IDs and static/dynamic map TODO
 
 - Date: 2026-09-21
-- Status: approved plan; implementation not started
+- Status: Phase A and Phase-B input preparation implemented; MLLM evaluation and dynamics not started
 - Immediate target: add object IDs only to the reconstructed 3D representation while leaving every original input frame unchanged
 
 ## Research question
@@ -121,6 +121,10 @@ This TODO does not claim:
 - complete dynamic reconstruction;
 - stable IDs across long videos;
 - improved MLLM reasoning before the controlled evaluation runs.
+
+## Implementation checkpoint
+
+The deterministic single-run static-candidate representation and controlled input packaging are implemented and recorded in `2026-09-21-3d-only-id-static-pilot.md`. Dynamic tracking remains intentionally gated on the fixed-protocol MLLM ablation described above.
 
 ## First executable step on Windows
 

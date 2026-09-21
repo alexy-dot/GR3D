@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-21 (3D-only scene IDs approved as the next representation pilot)
+Last updated: 2026-09-21 (3D-only static ID representation and six-condition package verified)
 
 ## Current objective
 
@@ -121,9 +121,13 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - `reconstruction/render_semantic_audit.py` now generates evaluation-only target-class overlays, a contact sheet, and per-frame pixel coverage without object IDs. On OSI 0000, bicycle is present in 6/8 sampled frames (9,323 pixels), minibike in 5/8 (12,182), and person in 8/8 (10,842).
 - Visual inspection of the overlay audit suggests that corresponding parked two-wheeler regions alternate between ADE20K `bicycle` and `minibike` across views. No stable instance tracker is present, so this is evidence of cross-view semantic instability, not proof that the algorithm identified the same physical object.
 - An optional, explicitly non-GR3D `--label-remap` extension is implemented in `build_semantic_voxels.py`. With only bicycle/minibike merged into `two_wheeler` at fixed voxel size 0.03 and threshold 10, total components drop from 62 to 60, two-wheeler components from 7 to 5, object-layer components from 17 to 15, and weighted purity rises from 0.9463 to 0.9488. The merge changes 5,552 of 13,653 matched observations.
-- The first OSI evaluation package is now generated from scene 0000 by `reconstruction/prepare_osi_pilot_package.py` and independently checked by `reconstruction/validate_osi_pilot_package.py`. It contains 8 exact sampled frames, 12 canonical/semantic views, 10 no-ID questions, separated ground truth, and four declared comparison conditions. Validation passed for 24 hashed input/metadata files; the complete ignored package is 3.7 MiB.
-- The four first-version conditions are raw frames only, raw plus unmodified-ADE layout/object views, raw plus the optional two-wheeler-merged views, and a tagged-question diagnostic control. Answers are not present in either question file. Source frames may still contain benchmark number tags baked into the pixels, which is recorded as a limitation rather than silently treated as no-ID imagery.
+- The initial four-condition OSI package was generated and validated before the 3D-only-ID plan. It is superseded by the six-condition Phase-B package below; its original result remains recorded in the 2026-09-20 experiment history.
 - `docs/FIRST_VERSION_HANDOFF.md` is the current senior-facing handoff. The first version is ready as a reproducible input/preprocessing package; downstream MLLM predictions have deliberately not been claimed.
+- Deterministic 3D-only `S###` candidate IDs are implemented by `reconstruction/export_scene_instances.py`. Layout surfaces are excluded; remaining semantic components are sorted by semantic name/label, quantized 3D center, and source component ID. The table records geometry, semantic evidence, view support, hashes, parameters, code revision, and the explicit lack of motion evidence.
+- `render_semantic_voxels.py --scene-instances` renders those IDs only in the aligned 3D views, with leader lines and a readable side legend. The manifest validates complete table/render ID agreement and records `source_frames_modified=false`.
+- House and OSI 0000 were both validated. House exports 14 candidates and OSI exports 17; repeated exports produced byte-identical SHA-256 files. The views were visually inspected rather than accepted from manifests alone.
+- One representative best-view crop per candidate is generated from point/pixel support without redrawing IDs on source frames. House and OSI each have four crops with small-dimension or low-support warnings. OSI crops preserve baked-in benchmark number tags, so the crop condition is not tag-free.
+- The updated OSI Phase-B package is 4.2 MiB with 47 hashed files, 10 questions, and six controlled conditions: raw only, RGB canonical, no-ID semantics, 3D-only IDs, 3D-only IDs plus crops, and a tagged diagnostic control. Package validation checks answer separation, shared frames/questions, scene-table/render/crop identity, render parameters, and all hashes.
 
 ### Paper-to-code coverage
 
@@ -198,13 +202,10 @@ After cloning on another machine, check out these revisions before reproducing t
 
 The executable task specification is `research/experiments/2026-09-21-3d-only-id-dynamic-map-todo.md`.
 
-1. Implement deterministic static scene IDs (`S001`, `S002`, ...) from the existing `objects.json` components and render them only in 3D views. Do not modify the original input frames.
-2. Export a machine-readable scene-instance table containing ID, semantic label, center, bounding box, confidence evidence, and the source component. Validate one-to-one consistency between rendered IDs and table entries.
-3. Build controlled package conditions for raw frames, no-ID 3D views, 3D-only IDs, and 3D-only IDs plus one representative crop per instance. Keep the current full/tagged condition only as a diagnostic control.
-4. Validate the static-ID implementation on both the house pilot and OSI scene 0000 before introducing tracking. Do not describe connected semantic components as verified physical instances.
-5. After the static-ID ablation is prepared, run one fixed MLLM/evaluation protocol and report per-category accuracy. Keep `ground_truth.json` outside the model prompt.
-6. Only then start a separate dynamic pilot: track object masks across frames, transform their 3D centers into the common world frame, classify them as static/dynamic/uncertain from camera-compensated motion evidence, and store dynamic objects as trajectories rather than fusing them into the static cloud.
-7. Long-video overlapping-window association remains a later phase. Stable IDs across windows require explicit matching and must not be inferred from per-run component numbers.
+1. Define and run one fixed MLLM protocol on the six prepared OSI conditions; report category-level accuracy and correspondence-specific failures, and keep `ground_truth.json` outside prompts.
+2. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
+3. Only after the static-ID ablation result, start the separate dynamic pilot: track masks, estimate camera-compensated world-frame centers, classify `static/dynamic/uncertain` from motion evidence, and store `D###` states outside the static cloud.
+4. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
 

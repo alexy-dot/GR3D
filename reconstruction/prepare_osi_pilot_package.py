@@ -21,6 +21,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--layout-views", required=True, type=Path)
     parser.add_argument("--ade-object-views", required=True, type=Path)
     parser.add_argument("--merged-object-views", required=True, type=Path)
+    parser.add_argument("--scene-id-views", type=Path)
+    parser.add_argument("--scene-instances", type=Path)
+    parser.add_argument("--representative-crops", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--scene-id", required=True)
     return parser.parse_args()
@@ -100,6 +103,67 @@ def main() -> None:
             files.append(copy_file(source_dir / source_name, output / relative, relative))
             views[set_name].append(relative.as_posix())
 
+    phase_b_values = (
+        args.scene_id_views, args.scene_instances, args.representative_crops
+    )
+    if any(phase_b_values) and not all(phase_b_values):
+        raise ValueError(
+            "--scene-id-views, --scene-instances, and --representative-crops "
+            "must be provided together"
+        )
+    phase_b = all(phase_b_values)
+    scene_instances_relative = None
+    crop_catalog_relative = None
+    scene_render_manifest_relative = None
+    crop_paths: list[str] = []
+    if phase_b:
+        scene_view_dir = args.scene_id_views.expanduser().resolve()
+        views["objects_3d_only_ids"] = []
+        for axis in ("xy", "xz", "yz"):
+            relative = Path("inputs") / "views" / "objects_3d_only_ids" / f"{axis}.png"
+            files.append(
+                copy_file(scene_view_dir / f"object_blocks_{axis}.png", output / relative, relative)
+            )
+            views["objects_3d_only_ids"].append(relative.as_posix())
+        scene_render_manifest_relative = (
+            Path("inputs") / "views" / "objects_3d_only_ids" / "render_manifest.json"
+        )
+        files.append(
+            copy_file(
+                scene_view_dir / "render_manifest.json",
+                output / scene_render_manifest_relative,
+                scene_render_manifest_relative,
+            )
+        )
+
+        scene_instances_relative = Path("inputs") / "scene" / "scene_instances.json"
+        files.append(
+            copy_file(
+                args.scene_instances.expanduser().resolve(),
+                output / scene_instances_relative,
+                scene_instances_relative,
+            )
+        )
+        crop_source = args.representative_crops.expanduser().resolve()
+        crop_payload = json.loads(
+            (crop_source / "representative_crops.json").read_text(encoding="utf-8")
+        )
+        crop_catalog_relative = (
+            Path("inputs") / "representative_crops" / "representative_crops.json"
+        )
+        files.append(
+            copy_file(
+                crop_source / "representative_crops.json",
+                output / crop_catalog_relative,
+                crop_catalog_relative,
+            )
+        )
+        for crop in crop_payload["crops"]:
+            source_relative = Path(crop["crop_path"])
+            relative = Path("inputs") / "representative_crops" / source_relative
+            files.append(copy_file(crop_source / source_relative, output / relative, relative))
+            crop_paths.append(relative.as_posix())
+
     tagged_questions = []
     no_id_questions = []
     ground_truth = []
@@ -126,32 +190,61 @@ def main() -> None:
         )
         ground_truth.append({"question_id": question_id, "answer": row["answer"]})
 
+    conditions = {
+        "raw_frames_only": {
+            "frames": [item["path"] for item in frames],
+            "views": [],
+            "questions": "questions_no_ids.json",
+        },
+        "raw_plus_rgb_canonical_views": {
+            "frames": [item["path"] for item in frames],
+            "views": views["rgb_point_cloud"],
+            "questions": "questions_no_ids.json",
+        },
+        "raw_plus_no_id_semantic_views": {
+            "frames": [item["path"] for item in frames],
+            "views": views["layout_semantic"] + views["objects_ade20k"],
+            "questions": "questions_no_ids.json",
+        },
+    }
+    if phase_b:
+        conditions.update(
+            {
+                "raw_plus_3d_only_ids": {
+                    "frames": [item["path"] for item in frames],
+                    "views": views["layout_semantic"] + views["objects_3d_only_ids"],
+                    "scene_instances": scene_instances_relative.as_posix(),
+                    "view_manifest": scene_render_manifest_relative.as_posix(),
+                    "questions": "questions_no_ids.json",
+                },
+                "raw_plus_3d_ids_and_representative_crops": {
+                    "frames": [item["path"] for item in frames],
+                    "views": views["layout_semantic"] + views["objects_3d_only_ids"],
+                    "scene_instances": scene_instances_relative.as_posix(),
+                    "view_manifest": scene_render_manifest_relative.as_posix(),
+                    "representative_crop_catalog": crop_catalog_relative.as_posix(),
+                    "representative_crops": crop_paths,
+                    "questions": "questions_no_ids.json",
+                },
+            }
+        )
+    else:
+        conditions["raw_plus_merged_views"] = {
+            "frames": [item["path"] for item in frames],
+            "views": views["layout_semantic"] + views["objects_two_wheeler_merged"],
+            "questions": "questions_no_ids.json",
+        }
+    conditions["tagged_question_control"] = {
+        "frames": [item["path"] for item in frames],
+        "views": views["layout_semantic"] + views["objects_ade20k"],
+        "questions": "questions_tagged.json",
+    }
+
     json_outputs = {
         "questions_tagged.json": tagged_questions,
         "questions_no_ids.json": no_id_questions,
         "ground_truth.json": ground_truth,
-        "conditions.json": {
-            "raw_frames_only": {
-                "frames": [item["path"] for item in frames],
-                "views": [],
-                "questions": "questions_no_ids.json",
-            },
-            "raw_plus_ade_views": {
-                "frames": [item["path"] for item in frames],
-                "views": views["layout_semantic"] + views["objects_ade20k"],
-                "questions": "questions_no_ids.json",
-            },
-            "raw_plus_merged_views": {
-                "frames": [item["path"] for item in frames],
-                "views": views["layout_semantic"] + views["objects_two_wheeler_merged"],
-                "questions": "questions_no_ids.json",
-            },
-            "tagged_question_control": {
-                "frames": [item["path"] for item in frames],
-                "views": views["layout_semantic"] + views["objects_ade20k"],
-                "questions": "questions_tagged.json",
-            },
-        },
+        "conditions.json": conditions,
     }
     for name, data in json_outputs.items():
         path = output / name
@@ -177,6 +270,7 @@ def main() -> None:
             "The 28.1 m OSI answer is a calibration anchor, not independent validation.",
             "No-ID question rewriting removes textual ID suffixes only.",
             "The source benchmark frames may still contain baked-in visual number tags.",
+            "Representative crops inherit any visual number tags baked into source pixels.",
             "Semantic components are not verified physical instances.",
             "This package prepares inputs; it does not contain MLLM predictions.",
         ],

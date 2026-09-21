@@ -227,8 +227,8 @@ python reconstruction/build_semantic_voxels.py \
 
 ## Prepare and validate a no-ID OSI pilot package
 
-After the reconstruction and semantic view sets are complete, assemble the four
-first-version evaluation conditions with answers stored separately:
+After the reconstruction and semantic view sets are complete, assemble the six
+Phase-B evaluation conditions with answers stored separately:
 
 ```bash
 python reconstruction/prepare_osi_pilot_package.py \
@@ -237,6 +237,9 @@ python reconstruction/prepare_osi_pilot_package.py \
   --layout-views outputs/osi_0000_pi3_8f_exact/voxel_views_layout \
   --ade-object-views outputs/osi_0000_pi3_8f_exact/voxel_views_objects_c10 \
   --merged-object-views outputs/osi_0000_pi3_8f_exact/voxel_views_objects_c10_tw \
+  --scene-id-views outputs/osi_0000_pi3_8f_exact/scene_instances_c10/views \
+  --scene-instances outputs/osi_0000_pi3_8f_exact/scene_instances_c10/scene_instances.json \
+  --representative-crops outputs/osi_0000_pi3_8f_exact/scene_instances_c10/representative_crops \
   --output outputs/osi_0000_first_version_package \
   --scene-id 0000
 
@@ -247,6 +250,43 @@ python reconstruction/validate_osi_pilot_package.py \
 The validator rejects missing or modified files, absolute manifest paths, object-ID
 suffixes in no-ID questions, answer leakage, and unexpected question/condition counts.
 Generated packages stay under `outputs/` and must not be committed.
+
+## Add deterministic IDs only to the 3D representation
+
+Export object-layer semantic components as deterministic single-run `S###` candidates:
+
+```bash
+python reconstruction/export_scene_instances.py \
+  --objects outputs/run/semantic_voxels/objects.json \
+  --output outputs/run/scene_instances/scene_instances.json \
+  --scene-id scene_name
+
+python reconstruction/render_semantic_voxels.py \
+  --voxels outputs/run/semantic_voxels/semantic_voxels.npz \
+  --camera-poses outputs/run/camera_poses.npy \
+  --objects-json outputs/run/semantic_voxels/objects.json \
+  --scene-instances outputs/run/scene_instances/scene_instances.json \
+  --output outputs/run/scene_instances/views \
+  --layer objects --color-by component --style both
+```
+
+These IDs identify deterministic semantic-component candidates within one bounded run.
+They are not verified physical instances and do not persist across reconstruction windows.
+Original frames are neither copied with ID overlays nor modified.
+
+Optionally extract one appearance crop per candidate without adding an ID to the pixels:
+
+```bash
+python reconstruction/extract_representative_crops.py \
+  --run-directory outputs/run \
+  --voxels outputs/run/semantic_voxels/semantic_voxels.npz \
+  --objects outputs/run/semantic_voxels/objects.json \
+  --scene-instances outputs/run/scene_instances/scene_instances.json \
+  --output outputs/run/scene_instances/representative_crops
+```
+
+The crop catalog records source/crop hashes, support, bounding boxes, and quality warnings.
+Any visual tags already baked into source pixels remain a declared confound.
 
 ## Increasing the workload
 

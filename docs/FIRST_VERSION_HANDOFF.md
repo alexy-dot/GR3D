@@ -30,16 +30,18 @@ Original Pi3 is retained as the GR3D-comparable geometry baseline. The optional 
 
 ## Prepared comparison
 
-`reconstruction/prepare_osi_pilot_package.py` builds four auditable conditions:
+`reconstruction/prepare_osi_pilot_package.py` now builds six auditable conditions:
 
 1. `raw_frames_only`: sampled frames and questions with textual ID suffixes removed.
-2. `raw_plus_ade_views`: frames plus layout/object views from original ADE20K labels.
-3. `raw_plus_merged_views`: frames plus layout and two-wheeler-merged object views.
-4. `tagged_question_control`: original tagged questions plus the original-ADE views.
+2. `raw_plus_rgb_canonical_views`: frames plus RGB point-cloud XY/XZ/YZ views.
+3. `raw_plus_no_id_semantic_views`: frames plus layout/object views without scene IDs.
+4. `raw_plus_3d_only_ids`: unchanged frames plus 3D `S###` views and scene table.
+5. `raw_plus_3d_ids_and_representative_crops`: the same 3D-ID representation plus one source-pixel crop per candidate.
+6. `tagged_question_control`: original tagged questions plus the original-ADE views.
 
 Answers are stored separately in `ground_truth.json`. Every copied input is fingerprinted in `package_manifest.json`.
 
-The generated scene 0000 package is 3.7 MiB. Its validator passed with 24 hashed input/metadata files, 10 questions, and all four conditions. The package itself remains under ignored `outputs/`; the repository stores the reproducible builders, validator, experiment record, and exact configuration rather than generated media.
+The generated scene 0000 Phase-B package is 4.2 MiB. Its validator passed with 47 hashed input/metadata files, 10 questions, and all six conditions. The package itself remains under ignored `outputs/`; the repository stores the reproducible builders, validator, experiment record, and exact configuration rather than generated media.
 
 ## What this first version does not prove
 
@@ -56,3 +58,9 @@ Present the first version as a feasibility result, not a final method claim:
 > We can reconstruct an official OSI outdoor sequence into stable, axis-aligned 3D views and produce no-ID semantic object blocks without manually re-annotating every frame. The first pilot exposes semantic label flicker and non-metric-scale limitations, but both are recorded and partially controlled. The next decisive experiment is whether adding these 3D views improves OSI question accuracy over raw frames alone.
 
 The proposed method should be judged by the planned downstream ablation, not by point-cloud appearance alone.
+
+## 2026-09-21 representation update
+
+The next approved pilot is now implemented: deterministic `S###` labels exist only in the aligned 3D object views and a machine-readable scene table. Source frames remain unchanged. House and OSI 0000 both pass deterministic export and table/render consistency checks.
+
+The OSI package now contains six controlled conditions, including no-ID semantics, 3D-only IDs, and 3D-only IDs plus one representative crop per candidate. This prepares the static-ID ablation but does not supply an MLLM accuracy result. Some OSI crops contain benchmark number tags baked into the source pixels, so the crop condition is explicitly confounded rather than claimed as tag-free.
