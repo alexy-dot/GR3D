@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-22 (first manual SAM 2/Pi3 dynamic pilot completed as D001)
+Last updated: 2026-09-22 (parked-bicycle stationary negative control completed as S001)
 
 ## Current objective
 
@@ -143,6 +143,10 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - The skating candidate is declared `D001` only within this bounded clip. It has eight valid Pi3-linked centers, 2,996--4,976 supporting points per state, median normalized motion 13.7566, direction consistency 0.8235, and remains dynamic at thresholds 2, 3, and 5. These are Pi3 model units and internal background-normalized evidence, not metric ground truth.
 - The derived static map retains 310,029 of 343,214 observations and stores 33,185 tracked dynamic observations separately (9.6689% removed). Raw Pi3 observations remain unchanged at SHA-256 `ee11320c4b51dc83ac8e39d56f9209838311a9ad7722d4cf9526d201ae2b1bc0`.
 - `reconstruction/render_dynamic_tracks.py` writes a time-indexed CSV, an XY/XZ/YZ trajectory audit, and an identical-view unfiltered/filtered map comparison. Nineteen focused dynamic-pipeline tests pass. Full parameters, hashes, warnings, and limitations are recorded in `research/experiments/2026-09-22-skating-dynamic-pilot.md`.
+- The first stationary-object negative control is complete on OSI 0000 using a manually initialized parked-bicycle track over source frames 57--171. SAM 2 tracked 39 frames bidirectionally from source frame 171; all three Pi3-linked frames have valid support. Normalized motion is 0.4522 and 0.4659, so the candidate remains static at thresholds 2, 3 and 5 and is assigned `S001`.
+- The S001 policy retains all 522,620 source observations, including 1,345 selected tracked observations; dynamic and uncertain counts are both zero. Raw Pi3 observations remain unchanged at SHA-256 `d598a4c035764eea2c66f28be57d0a719f0457eff136565a23d48a2634f56396`.
+- The stationary track is auditable but not error-free: it has an empty mask at source frame 147 and large adjacent area changes around frames 147, 150 and 153 during pedestrian occlusion. Median consecutive IoU is 0.6615 and maximum centroid jump is 0.01975 image diagonals. This is recorded as temporary occlusion/fragmentation, not continuous identity proof.
+- The complete reconstruction suite passes 52 tests after bounded bidirectional tracking, track auditing and static-track retention were added. Full evidence and hashes are recorded in `research/experiments/2026-09-22-osi0000-stationary-bicycle-control.md`.
 
 ### Paper-to-code coverage
 
@@ -206,7 +210,7 @@ After cloning on another machine, check out these revisions before reproducing t
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
-7. SAM 2 manual-box propagation is validated for the first within-clip dynamic pilot, but automated discovery, stationary-object false-removal controls, occlusion/ID-switch measurements, and cross-window identity are still unvalidated.
+7. SAM 2 manual-box propagation is validated for one moving-person pilot and one parked-bicycle negative control. The control did not falsely remove the parked target, but one-frame mask loss and occlusion fragmentation remain; annotated ID-switch measurement, automated discovery and cross-window identity are still unvalidated.
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
@@ -222,7 +226,7 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 
 1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
-3. Run one stationary-person or parked-vehicle negative control and one second dynamic clip before treating the `D001` policy as reliable. Measure mask ID switches/fragmentation and false removal explicitly.
+3. Run one second genuinely dynamic clip before treating the `D001` policy as reliable. The parked-bicycle negative control is complete as `S001`; its false-removal result and mask fragmentation are measured, but no annotated ID-switch rate is available.
 4. After those controls, add automated discovery and optional CoTracker foreground/background residual evidence as separate variables; do not silently replace the manual-box baseline.
 5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 

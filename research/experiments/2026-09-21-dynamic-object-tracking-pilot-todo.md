@@ -357,6 +357,11 @@ Primary references to inspect before implementation:
 - [x] Compare object displacement with background jitter.
 - [x] Produce a declared `D###` or `U###` result with evidence.
 
+### Phase D0 control
+
+- [x] Run one manually initialized parked-object negative control and verify that measured-static points are retained; recorded as OSI 0000 `S001` with explicit occlusion fragmentation.
+- [ ] Run one second genuinely dynamic clip before treating the motion policy as reliable.
+
 ### Phase D1: automated object discovery
 
 - [ ] Add Grounding DINO or a declared instance/panoptic front end.
