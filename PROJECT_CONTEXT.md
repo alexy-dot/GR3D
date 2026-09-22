@@ -235,5 +235,5 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 - Main repository remote: `https://github.com/alexy-dot/GR3D.git` (`origin`).
 - Repository visibility: public, explicitly confirmed by the user before the first push.
 - Main branch: maintained as a focused GR3D reconstruction workspace.
-- GitHub synchronization is temporarily blocked on the Windows laptop: two HTTPS push attempts after the S001 milestone failed because TCP port 443 to `github.com` was unreachable. The verified local commits remain intact and must be pushed before starting the second dynamic clip.
+- GitHub HTTPS connectivity briefly failed after the S001 milestone because TCP port 443 to the resolved Southeast Asia edge was unreachable. Connectivity recovered at 19:43 Asia/Shanghai and commits through `14f9491` were pushed successfully before starting the second dynamic clip.
 - Codex Remote troubleshooting: intentionally paused.
