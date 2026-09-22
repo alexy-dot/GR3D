@@ -1,7 +1,7 @@
 # Dynamic-object tracking and hybrid 3D map TODO
 
 - Date: 2026-09-21
-- Status: approved technical plan; implementation not started
+- Status: implementation started; background-normalized motion classifier verified on synthetic tracks
 - Priority gate: fix GitHub Issue #1 and complete the fixed-protocol static-ID MLLM ablation before claiming or prioritizing dynamic-scene results
 - Initial scope: one short monocular clip with one unambiguously moving person or vehicle
 
@@ -343,9 +343,9 @@ Primary references to inspect before implementation:
 
 - [x] Prepare a deterministic answer-blind 60-request protocol for six conditions and ten questions.
 - [x] Implement strict prediction completeness checks plus exact/category/numerical-error diagnostics.
-- [ ] Run one fixed MLLM protocol on the prepared static conditions.
-- [ ] Determine whether no-ID semantics, 3D-only IDs or representative crops provide measurable value.
-- [ ] Record correspondence-specific failures that motivate dynamic tracking.
+- [x] Run one fixed MLLM protocol on the prepared static conditions.
+- [x] Determine whether no-ID semantics, 3D-only IDs or representative crops provide measurable value on the first pilot scene.
+- [x] Record correspondence-specific failures that motivate dynamic tracking.
 
 ### Phase D0: one manually initialized dynamic track
 

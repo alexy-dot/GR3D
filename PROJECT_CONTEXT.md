@@ -136,6 +136,7 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - Project-diagnostic exact accuracy on OSI scene 0000 was: raw only 0.10; raw + RGB canonical 0.10; raw + no-ID semantic views 0.20; raw + 3D-only IDs 0.10; raw + 3D-only IDs and crops 0.10; tagged control 0.20. Numerical MAE respectively was 3.4914, 7.3486, 3.8343, 4.1914, 4.2914, and 4.4343. This single-scene run does not establish a general advantage and is not official OSI scoring.
 - The no-ID semantic condition answered one of two relative-distance MCQs correctly, while the 3D-only-ID condition answered neither; all six conditions answered the trajectory-description item correctly. The result does not support claiming that 3D-only IDs improve reasoning in the current representation.
 - Raw local artifacts remain outside Git. Prediction SHA-256 is `d3d02e8213333d05aa351106fb030b309cbe39730a2d2698c5e44b24bd6496fa`; score SHA-256 is `9a5b62b6e353cb936753af4c1230c712883d13f6ea14bb34b0430ea6d9c83743`.
+- Dynamic Phase D0 implementation has started with `reconstruction/classify_track_motion.py`. It classifies time-ordered robust 3D centers relative to per-interval background jitter, reports direction consistency, preserves thresholds 2/3/5 as a sensitivity sweep, and returns uncertain for insufficient or conflicting evidence. Five synthetic motion tests plus four MLLM regression tests pass. SAM 2 masks and real lifted tracks have not yet been produced.
 
 ### Paper-to-code coverage
 
