@@ -33,15 +33,14 @@ def git_state(directory: Path) -> tuple[str | None, bool | None]:
             capture_output=True,
             text=True,
         ).stdout.strip()
-        dirty = bool(
-            subprocess.run(
-                ["git", "status", "--porcelain"],
-                cwd=directory,
-                check=True,
-                capture_output=True,
-                text=True,
-            ).stdout.strip()
+        diff = subprocess.run(
+            ["git", "diff", "--quiet", "--ignore-space-at-eol", "HEAD", "--"],
+            cwd=directory,
+            check=False,
         )
+        if diff.returncode not in (0, 1):
+            raise subprocess.CalledProcessError(diff.returncode, diff.args)
+        dirty = diff.returncode == 1
         return revision, dirty
     except (OSError, subprocess.CalledProcessError):
         return None, None
