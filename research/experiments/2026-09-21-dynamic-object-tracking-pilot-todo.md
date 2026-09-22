@@ -360,7 +360,7 @@ Primary references to inspect before implementation:
 ### Phase D0 control
 
 - [x] Run one manually initialized parked-object negative control and verify that measured-static points are retained; recorded as OSI 0000 `S001` with explicit occlusion fragmentation.
-- [ ] Run one second genuinely dynamic clip before treating the motion policy as reliable.
+- [x] Run one second genuinely dynamic clip before treating the motion policy as reliable; recorded as OSI 0000 walking-person candidate `T003` with a run-scoped `D001` result.
 
 ### Phase D1: automated object discovery
 

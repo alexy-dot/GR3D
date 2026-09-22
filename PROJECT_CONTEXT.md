@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-22 (parked-bicycle stationary negative control completed as S001)
+Last updated: 2026-09-22 (second dynamic clip completed on OSI 0000 walking person)
 
 ## Current objective
 
@@ -147,6 +147,11 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - The S001 policy retains all 522,620 source observations, including 1,345 selected tracked observations; dynamic and uncertain counts are both zero. Raw Pi3 observations remain unchanged at SHA-256 `d598a4c035764eea2c66f28be57d0a719f0457eff136565a23d48a2634f56396`.
 - The stationary track is auditable but not error-free: it has an empty mask at source frame 147 and large adjacent area changes around frames 147, 150 and 153 during pedestrian occlusion. Median consecutive IoU is 0.6615 and maximum centroid jump is 0.01975 image diagonals. This is recorded as temporary occlusion/fragmentation, not continuous identity proof.
 - The complete reconstruction suite passes 52 tests after bounded bidirectional tracking, track auditing and static-track retention were added. Full evidence and hashes are recorded in `research/experiments/2026-09-22-osi0000-stationary-bicycle-control.md`.
+- A second genuinely dynamic clip is complete on OSI 0000. Candidate `T003` follows one pedestrian over source frames 57--147 with 31 non-empty SAM 2 masks and six valid Pi3-linked 3D states. A clean SAM rerun produced identical hashes for every frame and mask; visual review found no obvious switch, but no annotated ID-switch rate is claimed.
+- T003 normalized motion is `[22.6321, 7.8539, 4.6352, 8.0453, 7.3817]`, with median 7.8539 and direction consistency 0.6014. It remains dynamic at thresholds 2, 3 and 5. Its run-scoped `D001` is independent of the skating run's `D001` and is not a cross-run identity.
+- The T003 derived map removes 7,172 of 407,846 observations (1.7585%) and retains 400,674 static observations. Raw observations remain unchanged at SHA-256 `a924d87ab7e696d0e5ae3407253f9864babb45a17cd136f653d57032ce195008`.
+- The second Pi3 run exposed a provenance defect when the independent WSL clone lived outside the Windows-mounted repository. `run_pi3_baseline.py` now honors an explicit `PI3_ROOT` for both import and revision recording; final v2 records Pi3 revision `9fa3ddb3f8d53041f8b2738df404f62223bbaa7b`. The corrected and superseded successful runs have byte-identical point-cloud and observation hashes.
+- The complete reconstruction suite now passes 54 tests. Full parameters, hashes, the preserved startup failure and limitations are recorded in `research/experiments/2026-09-22-osi0000-walking-person-dynamic-pilot.md`.
 
 ### Paper-to-code coverage
 
@@ -210,7 +215,7 @@ After cloning on another machine, check out these revisions before reproducing t
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
-7. SAM 2 manual-box propagation is validated for one moving-person pilot and one parked-bicycle negative control. The control did not falsely remove the parked target, but one-frame mask loss and occlusion fragmentation remain; annotated ID-switch measurement, automated discovery and cross-window identity are still unvalidated.
+7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. Annotated ID-switch measurement, automated discovery, multi-candidate tracking and cross-window identity remain unvalidated.
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
@@ -226,8 +231,8 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 
 1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
-3. Run one second genuinely dynamic clip before treating the `D001` policy as reliable. The parked-bicycle negative control is complete as `S001`; its false-removal result and mask fragmentation are measured, but no annotated ID-switch rate is available.
-4. After those controls, add automated discovery and optional CoTracker foreground/background residual evidence as separate variables; do not silently replace the manual-box baseline.
+3. Treat the completed moving-person/moving-person/parked-bicycle set as an initial manual-box policy check only; it is not enough for a general robustness claim or an annotated ID-switch measurement.
+4. Add automated discovery and optional CoTracker foreground/background residual evidence as separate variables; do not silently replace the manual-box baseline.
 5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
@@ -235,5 +240,5 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 - Main repository remote: `https://github.com/alexy-dot/GR3D.git` (`origin`).
 - Repository visibility: public, explicitly confirmed by the user before the first push.
 - Main branch: maintained as a focused GR3D reconstruction workspace.
-- GitHub HTTPS connectivity briefly failed after the S001 milestone because TCP port 443 to the resolved Southeast Asia edge was unreachable. Connectivity recovered at 19:43 Asia/Shanghai and commits through `14f9491` were pushed successfully before starting the second dynamic clip.
+- GitHub HTTPS connectivity briefly failed after the S001 milestone but recovered before the second dynamic clip. The repository-local credential username is pinned to `alexy-dot` because Windows Credential Manager contains two GitHub accounts.
 - Codex Remote troubleshooting: intentionally paused.
