@@ -34,6 +34,30 @@ class VideoInstanceTrackingTests(unittest.TestCase):
             frame = cv2.imread(str(root / "frames" / records[0]["frame_path"]))
             self.assertEqual(frame.shape[:2], (4, 6))
 
+    def test_extract_frames_preserves_absolute_indices_for_bounded_segment(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            video = root / "input.avi"
+            writer = cv2.VideoWriter(
+                str(video), cv2.VideoWriter_fourcc(*"MJPG"), 10.0, (12, 8)
+            )
+            for value in range(10):
+                writer.write(np.full((8, 12, 3), value * 20, dtype=np.uint8))
+            writer.release()
+
+            records = extract_frames(
+                video,
+                root / "bounded",
+                interval=2,
+                max_frames=None,
+                width=12,
+                start_frame=3,
+                end_frame=8,
+            )
+
+            self.assertEqual([row["source_frame_index"] for row in records], [3, 5, 7])
+            self.assertEqual([row["timestamp_seconds"] for row in records], [0.3, 0.5, 0.7])
+
 
 if __name__ == "__main__":
     unittest.main()

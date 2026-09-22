@@ -46,7 +46,15 @@ def git_state(directory: Path) -> tuple[str | None, bool | None]:
         return None, None
 
 
-def extract_frames(video: Path, directory: Path, interval: int, max_frames: int | None, width: int) -> list[dict]:
+def extract_frames(
+    video: Path,
+    directory: Path,
+    interval: int,
+    max_frames: int | None,
+    width: int,
+    start_frame: int = 0,
+    end_frame: int | None = None,
+) -> list[dict]:
     capture = cv2.VideoCapture(str(video))
     if not capture.isOpened():
         raise ValueError(f"cannot open video: {video}")
@@ -59,7 +67,9 @@ def extract_frames(video: Path, directory: Path, interval: int, max_frames: int 
         ok, frame = capture.read()
         if not ok:
             break
-        if source_index % interval == 0:
+        if end_frame is not None and source_index > end_frame:
+            break
+        if source_index >= start_frame and (source_index - start_frame) % interval == 0:
             if width and frame.shape[1] != width:
                 height = round(frame.shape[0] * width / frame.shape[1])
                 frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_AREA)
@@ -86,15 +96,27 @@ def main() -> None:
     parser.add_argument("--sam2-revision", required=True)
     parser.add_argument("--model-config", default="configs/sam2.1/sam2.1_hiera_t.yaml")
     parser.add_argument("--interval", type=int, default=3)
+    parser.add_argument("--start-frame", type=int, default=0)
+    parser.add_argument("--end-frame", type=int)
     parser.add_argument("--max-frames", type=int)
     parser.add_argument("--width", type=int, default=640)
     args = parser.parse_args()
-    if args.interval < 1 or args.width < 1:
-        raise ValueError("interval and width must be positive")
+    if args.interval < 1 or args.width < 1 or args.start_frame < 0:
+        raise ValueError("interval and width must be positive and start-frame non-negative")
+    if args.end_frame is not None and args.end_frame < args.start_frame:
+        raise ValueError("end-frame must not precede start-frame")
     video, output = args.video.resolve(), args.output.resolve()
     started = time.monotonic()
     prompt = json.loads(args.prompt.read_text(encoding="utf-8"))
-    frames = extract_frames(video, output / "frames", args.interval, args.max_frames, args.width)
+    frames = extract_frames(
+        video,
+        output / "frames",
+        args.interval,
+        args.max_frames,
+        args.width,
+        args.start_frame,
+        args.end_frame,
+    )
     if not 0 <= int(prompt["sample_index"]) < len(frames):
         raise ValueError("prompt sample_index is outside extracted frames")
 
@@ -115,6 +137,9 @@ def main() -> None:
         frame_masks[int(frame_index)] = (logits[0] > 0).cpu().numpy().astype(np.uint8) * 255
         for frame_index, object_ids, logits in predictor.propagate_in_video(state):
             frame_masks[int(frame_index)] = (logits[0] > 0).cpu().numpy().astype(np.uint8) * 255
+        if int(prompt["sample_index"]) > 0:
+            for frame_index, object_ids, logits in predictor.propagate_in_video(state, reverse=True):
+                frame_masks[int(frame_index)] = (logits[0] > 0).cpu().numpy().astype(np.uint8) * 255
     entries = []
     for record in frames:
         index = record["sample_index"]
@@ -153,7 +178,14 @@ def main() -> None:
         "model_config": args.model_config,
         "prompt": prompt,
         "prompt_sha256": sha256(args.prompt.resolve()),
-        "parameters": {"interval": args.interval, "max_frames": args.max_frames, "width": args.width},
+        "parameters": {
+            "interval": args.interval,
+            "start_frame": args.start_frame,
+            "end_frame": args.end_frame,
+            "max_frames": args.max_frames,
+            "width": args.width,
+            "bidirectional_from_prompt": int(prompt["sample_index"]) > 0,
+        },
         "runtime": {
             "python": platform.python_version(),
             "torch": torch.__version__,
