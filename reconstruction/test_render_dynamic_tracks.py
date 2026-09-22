@@ -8,7 +8,11 @@ from pathlib import Path
 
 import numpy as np
 
-from reconstruction.render_dynamic_tracks import deterministic_sample, selected_by_frame
+from reconstruction.render_dynamic_tracks import (
+    deterministic_sample,
+    retained_static_indices,
+    selected_by_frame,
+)
 
 
 class RenderDynamicTracksTests(unittest.TestCase):
@@ -22,6 +26,12 @@ class RenderDynamicTracksTests(unittest.TestCase):
             np.savez_compressed(path, **{"0": np.asarray([0, 3])})
             with self.assertRaisesRegex(ValueError, "out of bounds"):
                 selected_by_frame(path, point_count=3)
+
+    def test_static_tracks_are_retained_and_dynamic_tracks_are_excluded(self) -> None:
+        tracked = np.asarray([1, 3])
+        self.assertEqual(retained_static_indices(5, tracked, "static").tolist(), [0, 1, 2, 3, 4])
+        self.assertEqual(retained_static_indices(5, tracked, "dynamic").tolist(), [0, 2, 4])
+        self.assertEqual(retained_static_indices(5, tracked, "uncertain").tolist(), [0, 2, 4])
 
 
 if __name__ == "__main__":

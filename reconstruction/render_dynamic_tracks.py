@@ -41,6 +41,17 @@ def deterministic_sample(indices: np.ndarray, limit: int) -> np.ndarray:
     return indices[np.linspace(0, len(indices) - 1, limit, dtype=np.int64)]
 
 
+def retained_static_indices(
+    point_count: int, tracked_indices: np.ndarray, motion_state: str
+) -> np.ndarray:
+    if motion_state not in {"static", "dynamic", "uncertain"}:
+        raise ValueError(f"unsupported motion state: {motion_state}")
+    mask = np.ones(point_count, dtype=bool)
+    if motion_state in {"dynamic", "uncertain"}:
+        mask[tracked_indices] = False
+    return np.flatnonzero(mask)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("observations", type=Path)
@@ -62,18 +73,18 @@ def main() -> None:
 
     with np.load(observations_path) as archive:
         points = archive["points"].astype(np.float64)
-    selected = selected_by_frame(selected_path, len(points))
-    dynamic_indices = np.unique(
-        np.concatenate(list(selected.values())) if selected else np.empty(0, dtype=np.int64)
-    )
-    static_mask = np.ones(len(points), dtype=bool)
-    static_mask[dynamic_indices] = False
-    static_indices = deterministic_sample(np.flatnonzero(static_mask), args.max_background_points)
-    dynamic_indices = deterministic_sample(dynamic_indices, args.max_dynamic_points)
-
     states_payload = json.loads(states_path.read_text(encoding="utf-8"))
     classification_payload = json.loads(classification_path.read_text(encoding="utf-8"))
     motion_state = classification_payload["classification"]["motion_state"]
+    selected = selected_by_frame(selected_path, len(points))
+    tracked_indices = np.unique(
+        np.concatenate(list(selected.values())) if selected else np.empty(0, dtype=np.int64)
+    )
+    static_indices = deterministic_sample(
+        retained_static_indices(len(points), tracked_indices, motion_state),
+        args.max_background_points,
+    )
+
     expected_prefix = {"static": "S", "dynamic": "D", "uncertain": "U"}[motion_state]
     entity_id = args.entity_id or f"{expected_prefix}001"
     if not entity_id.startswith(expected_prefix):
@@ -96,10 +107,10 @@ def main() -> None:
     all_dynamic_indices = np.concatenate(list(selected.values())) if selected else np.empty(0, dtype=np.int64)
     if len(all_dynamic_indices) > args.max_dynamic_points:
         sample_positions = np.linspace(0, len(all_dynamic_indices) - 1, args.max_dynamic_points, dtype=np.int64)
-        dynamic_plot_indices = all_dynamic_indices[sample_positions]
+        tracked_plot_indices = all_dynamic_indices[sample_positions]
         point_times = point_times[sample_positions]
     else:
-        dynamic_plot_indices = all_dynamic_indices
+        tracked_plot_indices = all_dynamic_indices
 
     projections = [(0, 1, "X", "Y"), (0, 2, "X", "Z"), (1, 2, "Y", "Z")]
     figure, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
@@ -107,10 +118,10 @@ def main() -> None:
     scatter = None
     for axis, (first, second, first_name, second_name) in zip(axes, projections):
         axis.scatter(points[static_indices, first], points[static_indices, second], s=0.35, c="#b8bec7", alpha=0.24, rasterized=True)
-        if len(dynamic_plot_indices):
+        if len(tracked_plot_indices):
             scatter = axis.scatter(
-                points[dynamic_plot_indices, first],
-                points[dynamic_plot_indices, second],
+                points[tracked_plot_indices, first],
+                points[tracked_plot_indices, second],
                 s=0.8,
                 c=point_times,
                 cmap="viridis",
@@ -139,8 +150,10 @@ def main() -> None:
         raw_axis = comparison_axes[0, column]
         static_axis = comparison_axes[1, column]
         raw_axis.scatter(points[raw_indices, first], points[raw_indices, second], s=0.4, c="#aeb6c2", alpha=0.28, rasterized=True)
-        raw_axis.scatter(points[dynamic_plot_indices, first], points[dynamic_plot_indices, second], s=0.8, c="#dc2626", alpha=0.38, rasterized=True)
+        raw_axis.scatter(points[tracked_plot_indices, first], points[tracked_plot_indices, second], s=0.8, c="#dc2626", alpha=0.38, rasterized=True)
         static_axis.scatter(points[static_indices, first], points[static_indices, second], s=0.4, c="#667085", alpha=0.3, rasterized=True)
+        if motion_state == "static":
+            static_axis.scatter(points[tracked_plot_indices, first], points[tracked_plot_indices, second], s=0.8, c="#16a34a", alpha=0.4, rasterized=True)
         bounds_first = np.quantile(points[:, first], [0.01, 0.99])
         bounds_second = np.quantile(points[:, second], [0.01, 0.99])
         for axis in (raw_axis, static_axis):
@@ -151,7 +164,8 @@ def main() -> None:
             axis.grid(True, linewidth=0.4, alpha=0.35)
             axis.set_aspect("equal", adjustable="box")
         raw_axis.set_title(f"Unfiltered {first_name}{second_name}; tracked points in red")
-        static_axis.set_title(f"Filtered static map {first_name}{second_name}")
+        suffix = "; tracked points retained" if motion_state == "static" else ""
+        static_axis.set_title(f"Filtered static map {first_name}{second_name}{suffix}")
     comparison.suptitle(f"{entity_id} dynamic-point filtering audit")
     comparison_path = output / "static_filter_comparison_xyz.png"
     comparison.savefig(comparison_path, dpi=180)
@@ -179,7 +193,8 @@ def main() -> None:
         "coordinate_system": "raw_pi3_model_units",
         "valid_state_count": len(states),
         "source_point_count": len(points),
-        "selected_dynamic_point_count": int(len(np.unique(all_dynamic_indices))),
+        "selected_tracked_point_count": int(len(np.unique(all_dynamic_indices))),
+        "excluded_from_static_point_count": int(len(tracked_indices)) if motion_state != "static" else 0,
         "parameters": {
             "max_background_points": args.max_background_points,
             "max_dynamic_points": args.max_dynamic_points,
