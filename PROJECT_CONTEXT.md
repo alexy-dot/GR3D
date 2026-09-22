@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-22 (first 60-request Qwen3-VL static-ID ablation completed and scored)
+Last updated: 2026-09-22 (first manual SAM 2/Pi3 dynamic pilot completed as D001)
 
 ## Current objective
 
@@ -136,10 +136,13 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - Project-diagnostic exact accuracy on OSI scene 0000 was: raw only 0.10; raw + RGB canonical 0.10; raw + no-ID semantic views 0.20; raw + 3D-only IDs 0.10; raw + 3D-only IDs and crops 0.10; tagged control 0.20. Numerical MAE respectively was 3.4914, 7.3486, 3.8343, 4.1914, 4.2914, and 4.4343. This single-scene run does not establish a general advantage and is not official OSI scoring.
 - The no-ID semantic condition answered one of two relative-distance MCQs correctly, while the 3D-only-ID condition answered neither; all six conditions answered the trajectory-description item correctly. The result does not support claiming that 3D-only IDs improve reasoning in the current representation.
 - Raw local artifacts remain outside Git. Prediction SHA-256 is `d3d02e8213333d05aa351106fb030b309cbe39730a2d2698c5e44b24bd6496fa`; score SHA-256 is `9a5b62b6e353cb936753af4c1230c712883d13f6ea14bb34b0430ea6d9c83743`.
-- Dynamic Phase D0 implementation has started with `reconstruction/classify_track_motion.py`. It classifies time-ordered robust 3D centers relative to per-interval background jitter, reports direction consistency, preserves thresholds 2/3/5 as a sensitivity sweep, and returns uncertain for insufficient or conflicting evidence. Five synthetic motion tests plus four MLLM regression tests pass. SAM 2 masks and real lifted tracks have not yet been produced.
+- Dynamic Phase D0 is complete on Pi3's short skating example with one manually initialized person track. SAM 2.1 Hiera Tiny propagated 34 masks at 640-pixel width; the fixed eight Pi3 frames all retained valid 3D support. Three repeated SAM runs produced identical per-frame mask hashes.
 - `reconstruction/lift_tracks_to_3d.py` now intersects saved binary masks with exact Pi3 sample/pixel observations, checks run-manifest provenance and image shape, optionally erodes mask boundaries, saves selected raw point indices, and emits median centers, 5--95% boxes, MAD spread, confidence, and explicit insufficient-support warnings. Three focused tests plus five motion tests pass.
-- `reconstruction/build_static_dynamic_map.py` now creates derived, disjoint static/dynamic/uncertain artifacts from classified track-point indices. Dynamic evidence takes precedence over uncertain overlap, uncertain points are excluded from the confident static map, static tracks do not remove points, and the raw observation hash plus `raw_source_modified=false` are recorded. Three partition tests pass; no real dynamic map is claimed until SAM 2 masks are available.
-- `reconstruction/run_video_instance_tracking.py` provides the Phase-D0 SAM 2.1 manual-box entry point: deterministic dense-frame extraction with original indices/timestamps, one confirmed box prompt, lossless binary mask propagation, and video/frame/checkpoint hashes. It is syntax-checked but not inference-validated yet because the pinned official SAM 2 source/checkpoint installation is still in progress.
+- `reconstruction/build_static_dynamic_map.py` now creates derived, disjoint static/dynamic/uncertain artifacts from classified track-point indices and assigns state-scoped `S###/D###/U###` IDs. Dynamic evidence takes precedence over uncertain overlap, uncertain points are excluded from the confident static map, static tracks do not remove points, and the raw observation hash plus `raw_source_modified=false` are recorded.
+- `reconstruction/run_video_instance_tracking.py` is inference-validated with pinned SAM 2 revision `2b90b9f5ceec907a1c18123530e92e794ad901a4` and Hiera Tiny checkpoint SHA-256 `7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69`. The final clean run used 1.042 GiB peak allocated VRAM and 9.18 seconds.
+- The skating candidate is declared `D001` only within this bounded clip. It has eight valid Pi3-linked centers, 2,996--4,976 supporting points per state, median normalized motion 13.7566, direction consistency 0.8235, and remains dynamic at thresholds 2, 3, and 5. These are Pi3 model units and internal background-normalized evidence, not metric ground truth.
+- The derived static map retains 310,029 of 343,214 observations and stores 33,185 tracked dynamic observations separately (9.6689% removed). Raw Pi3 observations remain unchanged at SHA-256 `ee11320c4b51dc83ac8e39d56f9209838311a9ad7722d4cf9526d201ae2b1bc0`.
+- `reconstruction/render_dynamic_tracks.py` writes a time-indexed CSV, an XY/XZ/YZ trajectory audit, and an identical-view unfiltered/filtered map comparison. Nineteen focused dynamic-pipeline tests pass. Full parameters, hashes, warnings, and limitations are recorded in `research/experiments/2026-09-22-skating-dynamic-pilot.md`.
 
 ### Paper-to-code coverage
 
@@ -203,7 +206,7 @@ After cloning on another machine, check out these revisions before reproducing t
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
-7. Dynamic-region masking method and dataset are not selected yet; this decision waits for the static baseline output.
+7. SAM 2 manual-box propagation is validated for the first within-clip dynamic pilot, but automated discovery, stationary-object false-removal controls, occlusion/ID-switch measurements, and cross-window identity are still unvalidated.
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
@@ -215,12 +218,13 @@ After cloning on another machine, check out these revisions before reproducing t
 
 The executable task specification is `research/experiments/2026-09-21-3d-only-id-dynamic-map-todo.md`.
 
-The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. It specifies a dual-rate SAM 2/Pi3 pipeline, optional CoTracker3 motion evidence, background-normalized `S/D/U` classification, hybrid static-map/dynamic-track outputs, tests, controlled baselines, and the RTX 4060 execution policy. Phase-B package hardening is complete; dynamic work remains gated behind the fixed-protocol static-ID MLLM ablation.
+The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. Phase D0 is complete on one manually initialized clip; Phase D1 automation and the full Phase D2 comparison remain open.
 
 1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
-3. The static-ID gate has now been run and showed no benefit on scene 0000. Start the separate dynamic pilot cautiously: track masks, estimate camera-compensated world-frame centers, classify `static/dynamic/uncertain` from motion evidence, and store `D###` states outside the static cloud.
-4. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
+3. Run one stationary-person or parked-vehicle negative control and one second dynamic clip before treating the `D001` policy as reliable. Measure mask ID switches/fragmentation and false removal explicitly.
+4. After those controls, add automated discovery and optional CoTracker foreground/background residual evidence as separate variables; do not silently replace the manual-box baseline.
+5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
 

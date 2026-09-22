@@ -1,7 +1,7 @@
 # Dynamic-object tracking and hybrid 3D map TODO
 
 - Date: 2026-09-21
-- Status: implementation started; background-normalized motion classifier verified on synthetic tracks
+- Status: Phase D0 manual-track pilot complete on 2026-09-22; Phase D1 automation and full Phase D2 comparison remain open
 - Priority gate: fix GitHub Issue #1 and complete the fixed-protocol static-ID MLLM ablation before claiming or prioritizing dynamic-scene results
 - Initial scope: one short monocular clip with one unambiguously moving person or vehicle
 
@@ -335,7 +335,7 @@ Primary references to inspect before implementation:
 
 ### Gate 0: repair current Phase-B package
 
-- [ ] Close GitHub Issue #1 after the hardening commit is pushed.
+- [x] Close GitHub Issue #1 after the hardening commit is pushed.
 - [x] Remove unsupported `motion_state=static` from unmeasured Phase-A candidates.
 - [x] Revalidate the six-condition package and documentation (51 hashed files; 10 questions; 6 conditions).
 
@@ -349,13 +349,13 @@ Primary references to inspect before implementation:
 
 ### Phase D0: one manually initialized dynamic track
 
-- [ ] Select one short clip with one obvious moving object and relatively stable camera reconstruction.
-- [ ] Save dense low-resolution tracking frames with exact source indices and timestamps.
-- [ ] Manually confirm one initial object mask.
-- [ ] Propagate the mask through the clip.
-- [ ] Lift the track at Pi3 frames and render its world-space center trajectory.
-- [ ] Compare object displacement with background jitter.
-- [ ] Produce a declared `D###` or `U###` result with evidence.
+- [x] Select one short clip with one obvious moving object and relatively stable camera reconstruction.
+- [x] Save dense low-resolution tracking frames with exact source indices and timestamps.
+- [x] Manually confirm one initial object mask.
+- [x] Propagate the mask through the clip.
+- [x] Lift the track at Pi3 frames and render its world-space center trajectory.
+- [x] Compare object displacement with background jitter.
+- [x] Produce a declared `D###` or `U###` result with evidence.
 
 ### Phase D1: automated object discovery
 
@@ -366,8 +366,8 @@ Primary references to inspect before implementation:
 
 ### Phase D2: static-map filtering
 
-- [ ] Remove only confirmed dynamic observations from a derived static map.
-- [ ] Preserve raw Pi3 output unchanged.
+- [x] Remove only confirmed dynamic observations from a derived static map.
+- [x] Preserve raw Pi3 output unchanged.
 - [ ] Compare unfiltered, semantic-only, tracked-mask and tracked-3D-motion conditions.
 
 ### Phase D3: later long-video persistence

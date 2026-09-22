@@ -288,6 +288,59 @@ python reconstruction/extract_representative_crops.py \
 The crop catalog records source/crop hashes, support, bounding boxes, and quality warnings.
 Any visual tags already baked into source pixels remain a declared confound.
 
+## Run the manual dynamic-object pilot
+
+Keep SAM 2 tracking and Pi3 reconstruction sequential on an 8 GiB GPU. The tracking
+stream may be denser than the Pi3 stream, but both manifests must retain original source
+frame indices and timestamps. Start from one manually confirmed box:
+
+```bash
+python reconstruction/run_video_instance_tracking.py \
+  third_party/Pi3/examples/skating.mp4 \
+  research/configs/dynamic-pilot-skating-manual-prompt.json \
+  outputs/dynamic_skating_pilot/sam2_tiny \
+  --checkpoint /path/to/sam2.1_hiera_tiny.pt \
+  --sam2-revision 2b90b9f5ceec907a1c18123530e92e794ad901a4 \
+  --model-config configs/sam2.1/sam2.1_hiera_t.yaml \
+  --interval 3 --width 640
+
+python reconstruction/align_track_to_pi3.py \
+  outputs/dynamic_skating_pilot/sam2_tiny/track_manifest.json \
+  outputs/dynamic_skating_pilot/pi3_8f_observations \
+  outputs/dynamic_skating_pilot/aligned_track
+
+python reconstruction/lift_tracks_to_3d.py \
+  outputs/dynamic_skating_pilot/pi3_8f_observations \
+  outputs/dynamic_skating_pilot/aligned_track/track_manifest.json \
+  outputs/dynamic_skating_pilot/lifted_track \
+  --min-points 20 --erode-pixels 1
+
+python reconstruction/estimate_background_jitter.py \
+  outputs/dynamic_skating_pilot/pi3_8f_observations/point_observations.npz \
+  outputs/dynamic_skating_pilot/lifted_track/selected_point_indices.npz \
+  outputs/dynamic_skating_pilot/background_jitter.json
+```
+
+`classify_track_motion.py` consumes the saved 3D states plus the saved background-jitter
+array. Use thresholds `2 3 5`, preserve the full sensitivity sweep, and assign `D###`
+only after the motion decision. `build_static_dynamic_map.py` writes a derived static PLY
+and separate dynamic/uncertain observations without modifying the raw Pi3 run.
+
+Render the decision from identical views:
+
+```bash
+python reconstruction/render_dynamic_tracks.py \
+  outputs/dynamic_skating_pilot/pi3_8f_observations/point_observations.npz \
+  outputs/dynamic_skating_pilot/lifted_track/selected_point_indices.npz \
+  outputs/dynamic_skating_pilot/lifted_track/track_3d_states.json \
+  outputs/dynamic_skating_pilot/motion_classification.json \
+  outputs/dynamic_skating_pilot/trajectory_render \
+  --entity-id D001
+```
+
+The resulting ID is valid only within the bounded clip. Background-normalized Pi3 motion
+is not a physical metric trajectory or proof of cross-window identity.
+
 ## Increasing the workload
 
 Change one variable at a time:
