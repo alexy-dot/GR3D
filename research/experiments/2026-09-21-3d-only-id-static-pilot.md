@@ -1,7 +1,7 @@
 # 3D-only static candidate ID pilot
 
 - Date: 2026-09-21
-- Status: Phase A and hardened Phase-B input preparation verified; MLLM evaluation not started
+- Status: Phase A and hardened Phase-B verified; first single-scene MLLM evaluation complete
 - Scope: deterministic `S###` candidate IDs inside one bounded reconstruction run; no source-frame ID overlays and no cross-window persistence claim
 
 ## Implementation
@@ -42,4 +42,4 @@ Validation enforces identical sampled frames and questions across experimental c
 - Unmeasured candidates use `motion_state=uncertain` with `motion_evidence=not_measured_phase_a_static_candidate`; no static/dynamic claim is made without measurements.
 - Four crops in each pilot trigger small-dimension or low-support warnings.
 - OSI number tags baked into source pixels remain visible in some crops and are a correspondence confound. This crop condition must not be described as tag-free.
-- No MLLM accuracy result exists yet. Do not start dynamic `D###/U###` work until the fixed-protocol static-ID ablation is run, as required by the approved plan.
+- The first fixed-protocol Qwen3-VL result is recorded in `2026-09-22-dashscope-mllm-run.md`. On OSI 0000, 3D-only IDs matched raw-only exact accuracy (0.10) rather than improving it; no-ID semantic views reached 0.20. Treat this as a single-scene diagnostic, not a general conclusion.

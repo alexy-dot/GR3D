@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-22 (DashScope runner verified locally; real inference blocked by empty persisted credential)
+Last updated: 2026-09-22 (first 60-request Qwen3-VL static-ID ablation completed and scored)
 
 ## Current objective
 
@@ -132,7 +132,10 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - `reconstruction/prepare_mllm_evaluation.py` deterministically expands the six conditions and ten OSI questions into 60 answer-blind requests with fixed image ordering, hashes, timestamps, prompt, and zero-temperature protocol. The real OSI 0000 package passed an explicit check that neither `ground_truth.json` nor the withheld numerical answers entered the request file.
 - `reconstruction/score_mllm_evaluation.py` requires exactly one prediction per request and reports exact accuracy, category accuracy, and numerical MAE. These metrics are labeled project diagnostics rather than official OSI scoring until the benchmark's evaluator is integrated.
 - `reconstruction/run_dashscope_mllm_evaluation.py` now executes the prepared requests through Alibaba Bailian's OpenAI-compatible endpoint, embeds only the declared package images, uses temperature zero, saves the returned model/usage/raw response after every request, resumes by request ID, and retries transient transport/429/5xx failures. Its request-construction test passes without ground-truth leakage.
-- The Bailian console's currently declared compatible Base URL is `https://maas.qianwenaiapi.com/compatible-mode/v1`. WSL can reach that host (HTTP/2 response observed), but the persisted `DASHSCOPE_API_KEY` value in a fresh shell is empty even though an export line exists in `~/.bashrc`. No valid model response has been obtained and no MLLM accuracy result is claimed.
+- The Bailian console's compatible Base URL is `https://maas.qianwenaiapi.com/compatible-mode/v1`. The credential was restored privately in WSL and the complete 60-request run finished with returned model `qwen3-vl-32b-instruct`, 382,892 total tokens (382,678 prompt; 214 completion), and no missing request IDs.
+- Project-diagnostic exact accuracy on OSI scene 0000 was: raw only 0.10; raw + RGB canonical 0.10; raw + no-ID semantic views 0.20; raw + 3D-only IDs 0.10; raw + 3D-only IDs and crops 0.10; tagged control 0.20. Numerical MAE respectively was 3.4914, 7.3486, 3.8343, 4.1914, 4.2914, and 4.4343. This single-scene run does not establish a general advantage and is not official OSI scoring.
+- The no-ID semantic condition answered one of two relative-distance MCQs correctly, while the 3D-only-ID condition answered neither; all six conditions answered the trajectory-description item correctly. The result does not support claiming that 3D-only IDs improve reasoning in the current representation.
+- Raw local artifacts remain outside Git. Prediction SHA-256 is `d3d02e8213333d05aa351106fb030b309cbe39730a2d2698c5e44b24bd6496fa`; score SHA-256 is `9a5b62b6e353cb936753af4c1230c712883d13f6ea14bb34b0430ea6d9c83743`.
 
 ### Paper-to-code coverage
 
@@ -202,7 +205,7 @@ After cloning on another machine, check out these revisions before reproducing t
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
 11. The first OSI outdoor pilot proves pipeline integration only. The paper describes synchronized stereo, 32-beam LiDAR, and IMU/GPS and says additional raw multimodal videos will be released, but the current official GitHub/Hugging Face release contains only MP4 and QA metadata. It cannot currently provide sensor-grounded ATE, metric scale, or heading validation.
 12. ADE20K semantic voting on OSI 0000 produces coherent large layout classes, but the current 30-voxel cutoff removes most small-object components. Internal purity must not be interpreted as correct object segmentation.
-13. The real Bailian run is credential-blocked: a fresh WSL login reports `DASHSCOPE_API_KEY` length zero. Re-enter the enabled key without printing or committing it, verify only presence/length, then run one request before the full 60-request batch.
+13. The first real Bailian run is complete, but it covers only one OSI scene and exact equality is intentionally strict for numerical questions. Broader conclusions require more scenes and alignment with the official evaluator.
 
 ## Exact next steps
 
@@ -210,9 +213,9 @@ The executable task specification is `research/experiments/2026-09-21-3d-only-id
 
 The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. It specifies a dual-rate SAM 2/Pi3 pipeline, optional CoTracker3 motion evidence, background-normalized `S/D/U` classification, hybrid static-map/dynamic-track outputs, tests, controlled baselines, and the RTX 4060 execution policy. Phase-B package hardening is complete; dynamic work remains gated behind the fixed-protocol static-ID MLLM ablation.
 
-1. Connect one declared vision-model API to the prepared 60-request blind protocol, save raw responses and model/version/decoding metadata, then report category-level accuracy and correspondence-specific failures. Keep `ground_truth.json` inaccessible to the inference process.
-2. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
-3. Only after the static-ID ablation result, start the separate dynamic pilot: track masks, estimate camera-compensated world-frame centers, classify `static/dynamic/uncertain` from motion evidence, and store `D###` states outside the static cloud.
+1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
+2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
+3. The static-ID gate has now been run and showed no benefit on scene 0000. Start the separate dynamic pilot cautiously: track masks, estimate camera-compensated world-frame centers, classify `static/dynamic/uncertain` from motion evidence, and store `D###` states outside the static cloud.
 4. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
