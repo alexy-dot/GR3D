@@ -319,6 +319,18 @@ detection manifest records the video, checkpoint, frames, boxes, scores,
 parameters, runtime and hashes. Candidate IDs are frame-local audit identifiers,
 not persistent object identities.
 
+Compare an automatically prompted track against a fixed manual-box control:
+
+```bash
+python reconstruction/compare_video_tracks.py \
+  outputs/manual_track/track_manifest.json \
+  outputs/automatic_track/track_manifest.json \
+  outputs/automatic_track/manual_comparison.json
+```
+
+The comparison requires identical video and extracted-frame hashes and records
+per-frame overlap, directional coverage, area ratio and normalized centroid shift.
+
 ## Run the manual dynamic-object pilot
 
 Keep SAM 2 tracking and Pi3 reconstruction sequential on an 8 GiB GPU. The tracking
