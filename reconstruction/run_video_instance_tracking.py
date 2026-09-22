@@ -7,6 +7,8 @@ import argparse
 import hashlib
 import json
 import platform
+import subprocess
+import time
 from pathlib import Path
 
 import cv2
@@ -20,6 +22,29 @@ def sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def git_state(directory: Path) -> tuple[str | None, bool | None]:
+    try:
+        revision = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=directory,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        dirty = bool(
+            subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=directory,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+        )
+        return revision, dirty
+    except (OSError, subprocess.CalledProcessError):
+        return None, None
 
 
 def extract_frames(video: Path, directory: Path, interval: int, max_frames: int | None, width: int) -> list[dict]:
@@ -59,6 +84,7 @@ def main() -> None:
     parser.add_argument("prompt", type=Path, help="JSON with track_candidate_id, sample_index, box_xyxy, semantic_name")
     parser.add_argument("output", type=Path)
     parser.add_argument("--checkpoint", type=Path, required=True)
+    parser.add_argument("--sam2-revision", required=True)
     parser.add_argument("--model-config", default="configs/sam2.1/sam2.1_hiera_t.yaml")
     parser.add_argument("--interval", type=int, default=3)
     parser.add_argument("--max-frames", type=int)
@@ -67,6 +93,7 @@ def main() -> None:
     if args.interval < 1 or args.width < 1:
         raise ValueError("interval and width must be positive")
     video, output = args.video.resolve(), args.output.resolve()
+    started = time.monotonic()
     prompt = json.loads(args.prompt.read_text(encoding="utf-8"))
     frames = extract_frames(video, output / "frames", args.interval, args.max_frames, args.width)
     if not 0 <= int(prompt["sample_index"]) < len(frames):
@@ -74,6 +101,9 @@ def main() -> None:
 
     from sam2.build_sam import build_sam2_video_predictor
 
+    if not torch.cuda.is_available():
+        raise RuntimeError("SAM 2 video tracking requires CUDA in this workflow")
+    torch.cuda.reset_peak_memory_stats()
     predictor = build_sam2_video_predictor(args.model_config, str(args.checkpoint.resolve()))
     state = predictor.init_state(video_path=str(output / "frames"))
     object_id = 1
@@ -94,8 +124,49 @@ def main() -> None:
         mask = np.squeeze(frame_masks[index])
         mask_path = masks_dir / f"{index:06d}.png"
         cv2.imwrite(str(mask_path), mask)
-        entries.append({"track_candidate_id": prompt["track_candidate_id"], "sample_index": index, "source_frame_index": record["source_frame_index"], "timestamp_seconds": record["timestamp_seconds"], "semantic_name": prompt.get("semantic_name"), "mask_path": str(mask_path.relative_to(output)), "mask_sha256": sha256(mask_path), "detector_confidence": None, "tracker_confidence": None, "visible": bool(mask.any()), "occluded": False})
-    manifest = {"status": "complete", "track_candidate_id": prompt["track_candidate_id"], "video": str(video), "video_sha256": sha256(video), "checkpoint": str(args.checkpoint.resolve()), "checkpoint_sha256": sha256(args.checkpoint.resolve()), "model_config": args.model_config, "prompt": prompt, "parameters": {"interval": args.interval, "max_frames": args.max_frames, "width": args.width}, "runtime": {"python": platform.python_version(), "torch": torch.__version__, "device": torch.cuda.get_device_name() if torch.cuda.is_available() else "cpu"}, "source_frames_modified": False, "frames": entries}
+        mask_pixels = int(np.count_nonzero(mask))
+        entries.append({
+            "track_candidate_id": prompt["track_candidate_id"],
+            "sample_index": index,
+            "source_frame_index": record["source_frame_index"],
+            "timestamp_seconds": record["timestamp_seconds"],
+            "semantic_name": prompt.get("semantic_name"),
+            "tracking_frame_path": str((output / "frames" / record["frame_path"]).relative_to(output)),
+            "tracking_frame_sha256": record["frame_sha256"],
+            "mask_path": str(mask_path.relative_to(output)),
+            "mask_sha256": sha256(mask_path),
+            "mask_area_pixels": mask_pixels,
+            "mask_fraction": mask_pixels / mask.size,
+            "detector_confidence": None,
+            "tracker_confidence": None,
+            "visible": bool(mask.any()),
+            "occluded": False,
+        })
+    revision, dirty = git_state(Path.cwd())
+    manifest = {
+        "status": "complete",
+        "track_candidate_id": prompt["track_candidate_id"],
+        "video": str(video),
+        "video_sha256": sha256(video),
+        "checkpoint": str(args.checkpoint.resolve()),
+        "checkpoint_sha256": sha256(args.checkpoint.resolve()),
+        "sam2_revision": args.sam2_revision,
+        "model_config": args.model_config,
+        "prompt": prompt,
+        "prompt_sha256": sha256(args.prompt.resolve()),
+        "parameters": {"interval": args.interval, "max_frames": args.max_frames, "width": args.width},
+        "runtime": {
+            "python": platform.python_version(),
+            "torch": torch.__version__,
+            "device": torch.cuda.get_device_name(),
+            "elapsed_seconds": time.monotonic() - started,
+            "peak_gpu_gib": round(torch.cuda.max_memory_allocated() / (1024**3), 3),
+        },
+        "code_revision": revision,
+        "code_dirty": dirty,
+        "source_frames_modified": False,
+        "frames": entries,
+    }
     (output / "track_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     print(f"Saved {len(entries)} masks to {output}")
 

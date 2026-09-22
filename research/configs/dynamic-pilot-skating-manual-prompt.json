@@ -1,0 +1,8 @@
+{
+  "track_candidate_id": "T001",
+  "sample_index": 0,
+  "box_xyxy": [292, 64, 405, 336],
+  "semantic_name": "person",
+  "initialization": "manually_confirmed_box_on_640px_first_frame",
+  "video": "third_party/Pi3/examples/skating.mp4"
+}
