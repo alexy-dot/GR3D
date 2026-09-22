@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Propagate one manually confirmed object box through a video with SAM 2."""
+"""Propagate one or more object boxes through a video with SAM 2."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import math
 import platform
 import subprocess
 import time
@@ -14,6 +15,46 @@ from pathlib import Path
 import cv2
 import numpy as np
 import torch
+
+
+def normalize_prompts(payload: dict) -> list[dict]:
+    prompts = payload.get("tracks") if "tracks" in payload else [payload]
+    if not isinstance(prompts, list) or not prompts:
+        raise ValueError("prompt must contain at least one track")
+    required = {"track_candidate_id", "sample_index", "box_xyxy"}
+    normalized = []
+    for prompt in prompts:
+        if not isinstance(prompt, dict) or not required.issubset(prompt):
+            raise ValueError("each prompt requires track_candidate_id, sample_index and box_xyxy")
+        track_id = str(prompt["track_candidate_id"])
+        box = [float(value) for value in prompt["box_xyxy"]]
+        if not track_id or len(box) != 4 or not all(math.isfinite(value) for value in box):
+            raise ValueError("track IDs must be non-empty and boxes must contain four finite values")
+        if box[2] <= box[0] or box[3] <= box[1]:
+            raise ValueError("prompt boxes must have positive area")
+        normalized.append({**prompt, "track_candidate_id": track_id, "box_xyxy": box})
+    track_ids = [prompt["track_candidate_id"] for prompt in normalized]
+    if len(track_ids) != len(set(track_ids)):
+        raise ValueError("track_candidate_id values must be unique")
+    sample_indices = {int(prompt["sample_index"]) for prompt in normalized}
+    if len(sample_indices) != 1:
+        raise ValueError("multi-candidate prompts must share one sample_index")
+    return normalized
+
+
+def record_masks(
+    frame_masks: dict[str, dict[int, np.ndarray]],
+    frame_index: int,
+    object_ids,
+    logits,
+    object_tracks: dict[int, str],
+) -> None:
+    for object_id, logit in zip(object_ids, logits):
+        numeric_id = int(object_id.item()) if hasattr(object_id, "item") else int(object_id)
+        track_id = object_tracks[numeric_id]
+        frame_masks[track_id][int(frame_index)] = (
+            (logit > 0).cpu().numpy().astype(np.uint8) * 255
+        )
 
 
 def sha256(path: Path) -> str:
@@ -90,7 +131,11 @@ def extract_frames(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("video", type=Path)
-    parser.add_argument("prompt", type=Path, help="JSON with track_candidate_id, sample_index, box_xyxy, semantic_name")
+    parser.add_argument(
+        "prompt",
+        type=Path,
+        help="JSON with one prompt or a same-frame tracks list",
+    )
     parser.add_argument("output", type=Path)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--sam2-revision", required=True)
@@ -107,7 +152,8 @@ def main() -> None:
         raise ValueError("end-frame must not precede start-frame")
     video, output = args.video.resolve(), args.output.resolve()
     started = time.monotonic()
-    prompt = json.loads(args.prompt.read_text(encoding="utf-8"))
+    prompt_payload = json.loads(args.prompt.read_text(encoding="utf-8"))
+    prompts = normalize_prompts(prompt_payload)
     frames = extract_frames(
         video,
         output / "frames",
@@ -117,7 +163,8 @@ def main() -> None:
         args.start_frame,
         args.end_frame,
     )
-    if not 0 <= int(prompt["sample_index"]) < len(frames):
+    prompt_sample_index = int(prompts[0]["sample_index"])
+    if not 0 <= prompt_sample_index < len(frames):
         raise ValueError("prompt sample_index is outside extracted frames")
 
     from sam2.build_sam import build_sam2_video_predictor
@@ -127,56 +174,71 @@ def main() -> None:
     torch.cuda.reset_peak_memory_stats()
     predictor = build_sam2_video_predictor(args.model_config, str(args.checkpoint.resolve()))
     state = predictor.init_state(video_path=str(output / "frames"))
-    object_id = 1
-    box = np.asarray(prompt["box_xyxy"], dtype=np.float32)
-    masks_dir = output / "masks" / prompt["track_candidate_id"]
-    masks_dir.mkdir(parents=True, exist_ok=True)
-    frame_masks = {}
+    object_tracks = {
+        object_id: prompt["track_candidate_id"]
+        for object_id, prompt in enumerate(prompts, start=1)
+    }
+    frame_masks: dict[str, dict[int, np.ndarray]] = {
+        prompt["track_candidate_id"]: {} for prompt in prompts
+    }
     with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
-        frame_index, object_ids, logits = predictor.add_new_points_or_box(inference_state=state, frame_idx=int(prompt["sample_index"]), obj_id=object_id, box=box)
-        frame_masks[int(frame_index)] = (logits[0] > 0).cpu().numpy().astype(np.uint8) * 255
+        for object_id, prompt in enumerate(prompts, start=1):
+            frame_index, object_ids, logits = predictor.add_new_points_or_box(
+                inference_state=state,
+                frame_idx=prompt_sample_index,
+                obj_id=object_id,
+                box=np.asarray(prompt["box_xyxy"], dtype=np.float32),
+            )
+            record_masks(frame_masks, frame_index, object_ids, logits, object_tracks)
         for frame_index, object_ids, logits in predictor.propagate_in_video(state):
-            frame_masks[int(frame_index)] = (logits[0] > 0).cpu().numpy().astype(np.uint8) * 255
-        if int(prompt["sample_index"]) > 0:
+            record_masks(frame_masks, frame_index, object_ids, logits, object_tracks)
+        if prompt_sample_index > 0:
             for frame_index, object_ids, logits in predictor.propagate_in_video(state, reverse=True):
-                frame_masks[int(frame_index)] = (logits[0] > 0).cpu().numpy().astype(np.uint8) * 255
-    entries = []
-    for record in frames:
-        index = record["sample_index"]
-        if index not in frame_masks:
-            continue
-        mask = np.squeeze(frame_masks[index])
-        mask_path = masks_dir / f"{index:06d}.png"
-        cv2.imwrite(str(mask_path), mask)
-        mask_pixels = int(np.count_nonzero(mask))
-        entries.append({
-            "track_candidate_id": prompt["track_candidate_id"],
-            "sample_index": index,
-            "source_frame_index": record["source_frame_index"],
-            "timestamp_seconds": record["timestamp_seconds"],
-            "semantic_name": prompt.get("semantic_name"),
-            "tracking_frame_path": str((output / "frames" / record["frame_path"]).relative_to(output)),
-            "tracking_frame_sha256": record["frame_sha256"],
-            "mask_path": str(mask_path.relative_to(output)),
-            "mask_sha256": sha256(mask_path),
-            "mask_area_pixels": mask_pixels,
-            "mask_fraction": mask_pixels / mask.size,
-            "detector_confidence": None,
-            "tracker_confidence": None,
-            "visible": bool(mask.any()),
-            "occluded": False,
-        })
+                record_masks(frame_masks, frame_index, object_ids, logits, object_tracks)
+
+    entries_by_track = {}
+    for object_id, prompt in enumerate(prompts, start=1):
+        track_id = prompt["track_candidate_id"]
+        masks_dir = output / "masks" / track_id
+        masks_dir.mkdir(parents=True, exist_ok=True)
+        entries = []
+        for record in frames:
+            index = record["sample_index"]
+            if index not in frame_masks[track_id]:
+                continue
+            mask = np.squeeze(frame_masks[track_id][index])
+            mask_path = masks_dir / f"{index:06d}.png"
+            if not cv2.imwrite(str(mask_path), mask):
+                raise RuntimeError(f"failed to write {mask_path}")
+            mask_pixels = int(np.count_nonzero(mask))
+            entries.append({
+                "track_candidate_id": track_id,
+                "sam2_object_id": object_id,
+                "sample_index": index,
+                "source_frame_index": record["source_frame_index"],
+                "timestamp_seconds": record["timestamp_seconds"],
+                "semantic_name": prompt.get("semantic_name"),
+                "tracking_frame_path": str((output / "frames" / record["frame_path"]).relative_to(output)),
+                "tracking_frame_sha256": record["frame_sha256"],
+                "mask_path": str(mask_path.relative_to(output)),
+                "mask_sha256": sha256(mask_path),
+                "mask_area_pixels": mask_pixels,
+                "mask_fraction": mask_pixels / mask.size,
+                "detector_confidence": prompt.get("detector_score"),
+                "tracker_confidence": None,
+                "visible": bool(mask.any()),
+                "occluded": False,
+            })
+        entries_by_track[track_id] = entries
     revision, dirty = git_state(Path.cwd())
-    manifest = {
+    common = {
         "status": "complete",
-        "track_candidate_id": prompt["track_candidate_id"],
         "video": str(video),
         "video_sha256": sha256(video),
         "checkpoint": str(args.checkpoint.resolve()),
         "checkpoint_sha256": sha256(args.checkpoint.resolve()),
         "sam2_revision": args.sam2_revision,
         "model_config": args.model_config,
-        "prompt": prompt,
         "prompt_sha256": sha256(args.prompt.resolve()),
         "parameters": {
             "interval": args.interval,
@@ -184,7 +246,9 @@ def main() -> None:
             "end_frame": args.end_frame,
             "max_frames": args.max_frames,
             "width": args.width,
-            "bidirectional_from_prompt": int(prompt["sample_index"]) > 0,
+            "bidirectional_from_prompt": prompt_sample_index > 0,
+            "prompt_sample_index": prompt_sample_index,
+            "candidate_count": len(prompts),
         },
         "runtime": {
             "python": platform.python_version(),
@@ -196,10 +260,54 @@ def main() -> None:
         "code_revision": revision,
         "code_dirty": dirty,
         "source_frames_modified": False,
-        "frames": entries,
     }
-    (output / "track_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-    print(f"Saved {len(entries)} masks to {output}")
+    if len(prompts) == 1:
+        prompt = prompts[0]
+        manifest = {
+            **common,
+            "track_candidate_id": prompt["track_candidate_id"],
+            "prompt": prompt,
+            "frames": entries_by_track[prompt["track_candidate_id"]],
+        }
+        (output / "track_manifest.json").write_text(
+            json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        )
+    else:
+        track_manifests = []
+        for object_id, prompt in enumerate(prompts, start=1):
+            track_id = prompt["track_candidate_id"]
+            manifest = {
+                **common,
+                "track_candidate_id": track_id,
+                "prompt": prompt,
+                "multi_candidate_run": True,
+                "frames": entries_by_track[track_id],
+            }
+            path = output / f"track_manifest_{track_id}.json"
+            path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+            track_manifests.append(
+                {
+                    "track_candidate_id": track_id,
+                    "sam2_object_id": object_id,
+                    "manifest_path": path.name,
+                    "manifest_sha256": sha256(path),
+                    "frame_count": len(entries_by_track[track_id]),
+                    "nonempty_mask_count": sum(
+                        entry["visible"] for entry in entries_by_track[track_id]
+                    ),
+                }
+            )
+        aggregate = {
+            **common,
+            "track_candidate_ids": [prompt["track_candidate_id"] for prompt in prompts],
+            "prompt": prompt_payload,
+            "tracks": track_manifests,
+        }
+        (output / "multi_track_manifest.json").write_text(
+            json.dumps(aggregate, indent=2) + "\n", encoding="utf-8"
+        )
+    total_masks = sum(len(entries) for entries in entries_by_track.values())
+    print(f"Saved {total_masks} masks across {len(prompts)} tracks to {output}")
 
 
 if __name__ == "__main__":

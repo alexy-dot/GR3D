@@ -1,0 +1,42 @@
+{
+  "source_detection_manifest_sha256": "981faacde7ae5031437be239d848877fd9fa2d61e7ee2a876d18d03972ce25f2",
+  "selection": "all_person_candidates_at_source_frame_111_above_score_0.7",
+  "tracks": [
+    {
+      "track_candidate_id": "T_AUTO_001",
+      "sample_index": 18,
+      "source_frame_index": 111,
+      "box_xyxy": [338, 132, 368, 222],
+      "semantic_name": "person",
+      "detector_candidate_id": "F000018C001",
+      "detector_score": 0.9990609288215637
+    },
+    {
+      "track_candidate_id": "T_AUTO_002",
+      "sample_index": 18,
+      "source_frame_index": 111,
+      "box_xyxy": [266, 157, 275, 178],
+      "semantic_name": "person",
+      "detector_candidate_id": "F000018C002",
+      "detector_score": 0.9503991603851318
+    },
+    {
+      "track_candidate_id": "T_AUTO_003",
+      "sample_index": 18,
+      "source_frame_index": 111,
+      "box_xyxy": [283, 159, 292, 176],
+      "semantic_name": "person",
+      "detector_candidate_id": "F000018C003",
+      "detector_score": 0.9254582524299622
+    },
+    {
+      "track_candidate_id": "T_AUTO_004",
+      "sample_index": 18,
+      "source_frame_index": 111,
+      "box_xyxy": [314, 156, 322, 174],
+      "semantic_name": "person",
+      "detector_candidate_id": "F000018C004",
+      "detector_score": 0.8546561002731323
+    }
+  ]
+}

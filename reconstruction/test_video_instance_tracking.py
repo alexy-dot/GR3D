@@ -9,10 +9,47 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from reconstruction.run_video_instance_tracking import extract_frames
+import torch
+
+from reconstruction.run_video_instance_tracking import (
+    extract_frames,
+    normalize_prompts,
+    record_masks,
+)
 
 
 class VideoInstanceTrackingTests(unittest.TestCase):
+    def test_single_prompt_remains_supported(self) -> None:
+        prompt = {
+            "track_candidate_id": "T001",
+            "sample_index": 2,
+            "box_xyxy": [1, 2, 5, 8],
+        }
+        self.assertEqual(normalize_prompts(prompt)[0]["track_candidate_id"], "T001")
+
+    def test_multi_prompts_require_unique_ids_on_same_frame(self) -> None:
+        prompts = {
+            "tracks": [
+                {"track_candidate_id": "T001", "sample_index": 2, "box_xyxy": [1, 2, 5, 8]},
+                {"track_candidate_id": "T002", "sample_index": 2, "box_xyxy": [4, 5, 9, 10]},
+            ]
+        }
+        self.assertEqual(len(normalize_prompts(prompts)), 2)
+        prompts["tracks"][1]["sample_index"] = 3
+        with self.assertRaisesRegex(ValueError, "one sample_index"):
+            normalize_prompts(prompts)
+        prompts["tracks"][1]["sample_index"] = 2
+        prompts["tracks"][1]["track_candidate_id"] = "T001"
+        with self.assertRaisesRegex(ValueError, "unique"):
+            normalize_prompts(prompts)
+
+    def test_record_masks_uses_returned_object_id_order(self) -> None:
+        masks = {"T001": {}, "T002": {}}
+        logits = torch.tensor([[[[-1.0, 2.0]]], [[[3.0, -1.0]]]])
+        record_masks(masks, 4, [2, 1], logits, {1: "T001", 2: "T002"})
+        self.assertEqual(masks["T002"][4].tolist(), [[[0, 255]]])
+        self.assertEqual(masks["T001"][4].tolist(), [[[255, 0]]])
+
     def test_extract_frames_preserves_source_indices_and_hashes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

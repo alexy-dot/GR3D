@@ -331,6 +331,12 @@ python reconstruction/compare_video_tracks.py \
 The comparison requires identical video and extracted-frame hashes and records
 per-frame overlap, directional coverage, area ratio and normalized centroid shift.
 
+To propagate several boxes initialized on the same sampled frame, pass a prompt
+JSON containing a `tracks` list. The tracker shares one SAM 2 video state and writes
+`multi_track_manifest.json` plus one backward-compatible
+`track_manifest_<track_candidate_id>.json` per candidate. Each per-track manifest
+can be passed directly to `align_track_to_pi3.py`.
+
 ## Run the manual dynamic-object pilot
 
 Keep SAM 2 tracking and Pi3 reconstruction sequential on an 8 GiB GPU. The tracking
