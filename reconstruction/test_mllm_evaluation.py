@@ -2,11 +2,30 @@
 from __future__ import annotations
 
 import unittest
+import tempfile
+from pathlib import Path
 
+from reconstruction.run_dashscope_mllm_evaluation import request_payload
 from reconstruction.score_mllm_evaluation import normalize_mcq, parse_number, score_rows
 
 
 class MllmEvaluationTests(unittest.TestCase):
+    def test_dashscope_payload_contains_images_but_no_answer(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "frame.png").write_bytes(b"png")
+            request = {
+                "system_prompt": "answer only",
+                "question": "Where?",
+                "options": ["A. here", "B. there"],
+                "images": [{"role": "video_frame", "path": "frame.png", "timestamp_seconds": 0.0}],
+            }
+            payload = request_payload(request, root, "model")
+            serialized = str(payload)
+            self.assertIn("data:image/png;base64", serialized)
+            self.assertNotIn("ground_truth", serialized)
+            self.assertEqual(payload["temperature"], 0)
+
     def test_parsers(self) -> None:
         self.assertEqual(normalize_mcq("Answer: b"), "B")
         self.assertEqual(parse_number("about 12.49 meters"), 12.49)

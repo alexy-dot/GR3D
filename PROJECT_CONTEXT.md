@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-21 (six-condition package hardened; answer-blind MLLM protocol prepared)
+Last updated: 2026-09-22 (DashScope runner verified locally; real inference blocked by empty persisted credential)
 
 ## Current objective
 
@@ -131,6 +131,8 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - Unmeasured Phase-A candidates now use `motion_state=uncertain`; `static` is reserved for a future result backed by motion evidence. The hardened OSI scene table SHA-256 is `f0098fe3637411e3f583f32733f8818fe17a07f305e800cc51a6d243b433210c`.
 - `reconstruction/prepare_mllm_evaluation.py` deterministically expands the six conditions and ten OSI questions into 60 answer-blind requests with fixed image ordering, hashes, timestamps, prompt, and zero-temperature protocol. The real OSI 0000 package passed an explicit check that neither `ground_truth.json` nor the withheld numerical answers entered the request file.
 - `reconstruction/score_mllm_evaluation.py` requires exactly one prediction per request and reports exact accuracy, category accuracy, and numerical MAE. These metrics are labeled project diagnostics rather than official OSI scoring until the benchmark's evaluator is integrated.
+- `reconstruction/run_dashscope_mllm_evaluation.py` now executes the prepared requests through Alibaba Bailian's OpenAI-compatible endpoint, embeds only the declared package images, uses temperature zero, saves the returned model/usage/raw response after every request, resumes by request ID, and retries transient transport/429/5xx failures. Its request-construction test passes without ground-truth leakage.
+- The Bailian console's currently declared compatible Base URL is `https://maas.qianwenaiapi.com/compatible-mode/v1`. WSL can reach that host (HTTP/2 response observed), but the persisted `DASHSCOPE_API_KEY` value in a fresh shell is empty even though an export line exists in `~/.bashrc`. No valid model response has been obtained and no MLLM accuracy result is claimed.
 
 ### Paper-to-code coverage
 
@@ -200,6 +202,7 @@ After cloning on another machine, check out these revisions before reproducing t
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
 11. The first OSI outdoor pilot proves pipeline integration only. The paper describes synchronized stereo, 32-beam LiDAR, and IMU/GPS and says additional raw multimodal videos will be released, but the current official GitHub/Hugging Face release contains only MP4 and QA metadata. It cannot currently provide sensor-grounded ATE, metric scale, or heading validation.
 12. ADE20K semantic voting on OSI 0000 produces coherent large layout classes, but the current 30-voxel cutoff removes most small-object components. Internal purity must not be interpreted as correct object segmentation.
+13. The real Bailian run is credential-blocked: a fresh WSL login reports `DASHSCOPE_API_KEY` length zero. Re-enter the enabled key without printing or committing it, verify only presence/length, then run one request before the full 60-request batch.
 
 ## Exact next steps
 
