@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from reconstruction.build_static_dynamic_map import partition_indices
+from reconstruction.build_static_dynamic_map import assign_entity_ids, partition_indices
 
 
 class StaticDynamicMapTests(unittest.TestCase):
@@ -23,6 +23,16 @@ class StaticDynamicMapTests(unittest.TestCase):
     def test_out_of_bounds_index_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "bounds"):
             partition_indices(2, [("dynamic", np.array([2]))])
+
+    def test_entity_ids_are_state_scoped_and_candidate_sorted(self) -> None:
+        records = [
+            {"track_candidate_id": "T009", "motion_state": "dynamic"},
+            {"track_candidate_id": "T002", "motion_state": "uncertain"},
+            {"track_candidate_id": "T001", "motion_state": "dynamic"},
+        ]
+        assign_entity_ids(records)
+        by_candidate = {row["track_candidate_id"]: row["entity_id"] for row in records}
+        self.assertEqual(by_candidate, {"T009": "D002", "T002": "U001", "T001": "D001"})
 
 
 if __name__ == "__main__":

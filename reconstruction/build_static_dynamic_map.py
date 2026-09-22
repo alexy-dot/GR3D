@@ -41,6 +41,17 @@ def partition_indices(count: int, tracks: list[tuple[str, np.ndarray]]) -> dict[
     }
 
 
+def assign_entity_ids(records: list[dict]) -> None:
+    prefixes = {"static": "S", "dynamic": "D", "uncertain": "U"}
+    for state, prefix in prefixes.items():
+        matching = sorted(
+            (row for row in records if row["motion_state"] == state),
+            key=lambda row: row["track_candidate_id"],
+        )
+        for ordinal, row in enumerate(matching, start=1):
+            row["entity_id"] = f"{prefix}{ordinal:03d}"
+
+
 def write_ply(path: Path, points: np.ndarray, colors: np.ndarray) -> None:
     vertex = np.empty(len(points), dtype=[("x", "<f4"), ("y", "<f4"), ("z", "<f4"), ("red", "u1"), ("green", "u1"), ("blue", "u1")])
     for index, name in enumerate(("x", "y", "z")):
@@ -75,6 +86,7 @@ def main() -> None:
             indices = np.concatenate([archive[name] for name in archive.files]) if archive.files else np.empty(0, dtype=np.int64)
         tracks.append((classification["motion_state"], indices))
         records.append({"track_candidate_id": item["track_candidate_id"], "motion_state": classification["motion_state"], "classification_sha256": sha256(classification_path), "selected_indices_sha256": sha256(indices_path)})
+    assign_entity_ids(records)
     groups = partition_indices(len(observations["points"]), tracks)
     output = args.output_directory.resolve()
     output.mkdir(parents=True, exist_ok=True)

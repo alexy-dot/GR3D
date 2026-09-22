@@ -48,6 +48,7 @@ def main() -> None:
     parser.add_argument("track_states", type=Path)
     parser.add_argument("classification", type=Path)
     parser.add_argument("output_directory", type=Path)
+    parser.add_argument("--entity-id")
     parser.add_argument("--max-background-points", type=int, default=100000)
     parser.add_argument("--max-dynamic-points", type=int, default=60000)
     args = parser.parse_args()
@@ -72,6 +73,11 @@ def main() -> None:
 
     states_payload = json.loads(states_path.read_text(encoding="utf-8"))
     classification_payload = json.loads(classification_path.read_text(encoding="utf-8"))
+    motion_state = classification_payload["classification"]["motion_state"]
+    expected_prefix = {"static": "S", "dynamic": "D", "uncertain": "U"}[motion_state]
+    entity_id = args.entity_id or f"{expected_prefix}001"
+    if not entity_id.startswith(expected_prefix):
+        raise ValueError(f"entity ID {entity_id} does not match motion state {motion_state}")
     states = [row for row in states_payload["states"] if row.get("center_xyz_median") is not None]
     states.sort(key=lambda row: (float(row["timestamp_seconds"]), int(row["sample_index"])))
     if not states:
@@ -122,8 +128,7 @@ def main() -> None:
         axis.set_aspect("equal", adjustable="datalim")
     if scatter is not None:
         figure.colorbar(scatter, ax=axes, label="Time (seconds)", shrink=0.8)
-    motion_state = classification_payload["classification"]["motion_state"]
-    figure.suptitle(f"{states_payload['track_candidate_id']} trajectory: {motion_state}")
+    figure.suptitle(f"{entity_id} trajectory: {motion_state} (source {states_payload['track_candidate_id']})")
     render_path = output / "dynamic_trajectory_xyz.png"
     figure.savefig(render_path, dpi=180)
     plt.close(figure)
@@ -147,7 +152,7 @@ def main() -> None:
             axis.set_aspect("equal", adjustable="box")
         raw_axis.set_title(f"Unfiltered {first_name}{second_name}; tracked points in red")
         static_axis.set_title(f"Filtered static map {first_name}{second_name}")
-    comparison.suptitle(f"{states_payload['track_candidate_id']} dynamic-point filtering audit")
+    comparison.suptitle(f"{entity_id} dynamic-point filtering audit")
     comparison_path = output / "static_filter_comparison_xyz.png"
     comparison.savefig(comparison_path, dpi=180)
     plt.close(comparison)
@@ -169,6 +174,7 @@ def main() -> None:
     manifest = {
         "status": "complete",
         "track_candidate_id": states_payload["track_candidate_id"],
+        "entity_id": entity_id,
         "motion_state": motion_state,
         "coordinate_system": "raw_pi3_model_units",
         "valid_state_count": len(states),
