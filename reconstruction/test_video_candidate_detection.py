@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+import subprocess
+import sys
 
 import numpy as np
 
@@ -15,6 +17,18 @@ from reconstruction.detect_video_candidates import (
 
 
 class VideoCandidateDetectionTests(unittest.TestCase):
+    def test_direct_script_entry_point_loads(self) -> None:
+        script = Path(__file__).with_name("detect_video_candidates.py")
+        result = subprocess.run(
+            [sys.executable, str(script), "--help"],
+            cwd=script.parents[1],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--checkpoint", result.stdout)
+
     def test_filtering_is_thresholded_class_filtered_and_deterministic(self) -> None:
         rows = filtered_candidates(
             np.asarray([[5, 5, 15, 25], [0, 0, 8, 8], [1, 1, 4, 4]]),

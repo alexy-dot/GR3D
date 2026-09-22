@@ -14,7 +14,10 @@ import numpy as np
 import torch
 from PIL import Image
 
-from reconstruction.run_video_instance_tracking import extract_frames, git_state, sha256
+if __package__:
+    from reconstruction.run_video_instance_tracking import extract_frames, git_state, sha256
+else:
+    from run_video_instance_tracking import extract_frames, git_state, sha256
 
 
 MODEL_NAME = "torchvision.fasterrcnn_resnet50_fpn_v2"
