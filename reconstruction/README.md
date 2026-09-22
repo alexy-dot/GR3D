@@ -28,6 +28,14 @@ pip install -r third_party/Pi3/requirements.txt
 pip install matplotlib
 ```
 
+By default the runner imports Pi3 from `third_party/Pi3` under this repository.
+When the independent clone lives elsewhere, point both imports and revision
+recording at the actual clone before running:
+
+```bash
+export PI3_ROOT=/absolute/path/to/Pi3
+```
+
 The CUDA version shown by `nvidia-smi` is the maximum version supported by the driver.
 It does not have to equal the CUDA runtime bundled with the PyTorch wheel.
 

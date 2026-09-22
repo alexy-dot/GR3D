@@ -15,6 +15,7 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Mapping
 
 import numpy as np
 import torch
@@ -22,7 +23,21 @@ from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-PI3_ROOT = PROJECT_ROOT / "third_party" / "Pi3"
+
+
+def resolve_pi3_root(
+    project_root: Path, environment: Mapping[str, str] | None = None
+) -> Path:
+    environment = os.environ if environment is None else environment
+    configured = environment.get("PI3_ROOT")
+    return (
+        Path(configured).expanduser().resolve()
+        if configured
+        else (project_root / "third_party" / "Pi3").resolve()
+    )
+
+
+PI3_ROOT = resolve_pi3_root(PROJECT_ROOT)
 if str(PI3_ROOT) not in sys.path:
     sys.path.insert(0, str(PI3_ROOT))
 
