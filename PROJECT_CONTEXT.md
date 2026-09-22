@@ -152,6 +152,7 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - The T003 derived map removes 7,172 of 407,846 observations (1.7585%) and retains 400,674 static observations. Raw observations remain unchanged at SHA-256 `a924d87ab7e696d0e5ae3407253f9864babb45a17cd136f653d57032ce195008`.
 - The second Pi3 run exposed a provenance defect when the independent WSL clone lived outside the Windows-mounted repository. `run_pi3_baseline.py` now honors an explicit `PI3_ROOT` for both import and revision recording; final v2 records Pi3 revision `9fa3ddb3f8d53041f8b2738df404f62223bbaa7b`. The corrected and superseded successful runs have byte-identical point-cloud and observation hashes.
 - The complete reconstruction suite now passes 54 tests. Full parameters, hashes, the preserved startup failure and limitations are recorded in `research/experiments/2026-09-22-osi0000-walking-person-dynamic-pilot.md`.
+- The Phase-D1 automatic discovery front end is implemented in `reconstruction/detect_video_candidates.py` using an explicitly pinned torchvision Faster R-CNN ResNet-50 FPN v2 COCO V1 checkpoint. It exports frame-local candidate boxes/scores and an optional SAM-2-compatible prompt without modifying source pixels. The implementation is syntax-checked and the complete reconstruction suite passes 58 tests; GPU inference validation is still pending.
 
 ### Paper-to-code coverage
 
@@ -215,7 +216,7 @@ After cloning on another machine, check out these revisions before reproducing t
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
-7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. Annotated ID-switch measurement, automated discovery, multi-candidate tracking and cross-window identity remain unvalidated.
+7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. Automated single-frame candidate discovery is implemented but not yet inference-validated; annotated ID-switch measurement, multi-candidate tracking and cross-window identity remain unvalidated.
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.

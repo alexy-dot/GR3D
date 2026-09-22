@@ -296,6 +296,29 @@ python reconstruction/extract_representative_crops.py \
 The crop catalog records source/crop hashes, support, bounding boxes, and quality warnings.
 Any visual tags already baked into source pixels remain a declared confound.
 
+## Detect video candidates without source-image annotation
+
+The optional Phase-D1 front end uses torchvision Faster R-CNN ResNet-50 FPN v2
+with a local COCO V1 checkpoint. It writes structured boxes and scores without
+drawing IDs or boxes onto source images. Semantic category proposes candidates;
+it does not determine their motion state.
+
+```bash
+python reconstruction/detect_video_candidates.py \
+  input.mp4 outputs/candidate_detection \
+  --checkpoint /path/to/fasterrcnn_resnet50_fpn_v2_coco.pth \
+  --interval 3 --start-frame 57 --end-frame 147 --width 640 \
+  --score-threshold 0.7 --classes person bicycle car motorcycle \
+  --prompt-source-frame 111 --prompt-class person \
+  --track-candidate-id T_AUTO_001
+```
+
+`selected_prompt.json` is compatible with `run_video_instance_tracking.py` when
+the detector and tracker use the same frame bounds, interval and width. The
+detection manifest records the video, checkpoint, frames, boxes, scores,
+parameters, runtime and hashes. Candidate IDs are frame-local audit identifiers,
+not persistent object identities.
+
 ## Run the manual dynamic-object pilot
 
 Keep SAM 2 tracking and Pi3 reconstruction sequential on an 8 GiB GPU. The tracking
