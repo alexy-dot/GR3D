@@ -1,0 +1,8 @@
+{
+  "track_candidate_id": "T002",
+  "sample_index": 38,
+  "box_xyxy": [435, 145, 513, 235],
+  "semantic_name": "bicycle",
+  "initialization": "manually_confirmed_box_on_source_frame_171_at_640px_width",
+  "video": "tmp/osi_pilot_0000.mp4"
+}
