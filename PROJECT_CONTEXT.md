@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-22 (second dynamic clip completed on OSI 0000 walking person)
+Last updated: 2026-09-22 (first single-candidate automatic discovery pilot completed)
 
 ## Current objective
 
@@ -152,7 +152,10 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - The T003 derived map removes 7,172 of 407,846 observations (1.7585%) and retains 400,674 static observations. Raw observations remain unchanged at SHA-256 `a924d87ab7e696d0e5ae3407253f9864babb45a17cd136f653d57032ce195008`.
 - The second Pi3 run exposed a provenance defect when the independent WSL clone lived outside the Windows-mounted repository. `run_pi3_baseline.py` now honors an explicit `PI3_ROOT` for both import and revision recording; final v2 records Pi3 revision `9fa3ddb3f8d53041f8b2738df404f62223bbaa7b`. The corrected and superseded successful runs have byte-identical point-cloud and observation hashes.
 - The complete reconstruction suite now passes 54 tests. Full parameters, hashes, the preserved startup failure and limitations are recorded in `research/experiments/2026-09-22-osi0000-walking-person-dynamic-pilot.md`.
-- The Phase-D1 automatic discovery front end is implemented in `reconstruction/detect_video_candidates.py` using an explicitly pinned torchvision Faster R-CNN ResNet-50 FPN v2 COCO V1 checkpoint. It exports frame-local candidate boxes/scores and an optional SAM-2-compatible prompt without modifying source pixels. A direct-script import failure found by the first formal command is fixed and covered by a subprocess test. `compare_video_tracks.py` provides hash-validated, per-frame comparison against a fixed manual track. The complete reconstruction suite passes 62 tests; the first detector and automatic-prompt SAM 2 runs are complete and their quantitative comparison is pending.
+- The Phase-D1 automatic discovery front end is implemented in `reconstruction/detect_video_candidates.py` using an explicitly pinned torchvision Faster R-CNN ResNet-50 FPN v2 COCO V1 checkpoint. It exports frame-local candidate boxes/scores and an optional SAM-2-compatible prompt without modifying source pixels. A direct-script import failure found by the first formal command is fixed and covered by a subprocess test. `compare_video_tracks.py` provides hash-validated, per-frame comparison against a fixed manual track. The complete reconstruction suite passes 62 tests.
+- The first automatic discovery pilot is complete on the T003 OSI interval. Faster R-CNN produced 121 thresholded person boxes over 31/31 frames in 19.00 seconds at 0.640 GiB peak allocation and selected a 0.9991-score prompt on source frame 111. The prompt-box IoU with the looser manual box is 0.35.
+- Automatic-prompt SAM 2 produced 31/31 non-empty masks in 14.70 seconds at 0.996 GiB. Against manual T003, mask IoU has minimum 0.8897, median 0.9549 and mean 0.9492; visual audit found no obvious identity switch, but no annotated switch rate is claimed.
+- The automatic masks yield six valid Pi3-linked states and remain dynamic at normalized-motion thresholds 2, 3 and 5. Median normalized motion is 7.8333 and direction consistency is 0.6008. This validates one single-candidate detector-to-motion path, not multi-candidate or cross-scene robustness. Full evidence is recorded in `research/experiments/2026-09-22-osi0000-automatic-person-discovery.md`.
 
 ### Paper-to-code coverage
 
@@ -216,7 +219,7 @@ After cloning on another machine, check out these revisions before reproducing t
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
-7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. Automated single-frame candidate discovery is implemented but not yet inference-validated; annotated ID-switch measurement, multi-candidate tracking and cross-window identity remain unvalidated.
+7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. One single-candidate automatic detector-to-motion run is also validated on that second pedestrian. Annotated ID-switch measurement, multi-candidate tracking, cross-scene automatic discovery and cross-window identity remain unvalidated.
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
@@ -233,7 +236,7 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
 3. Treat the completed moving-person/moving-person/parked-bicycle set as an initial manual-box policy check only; it is not enough for a general robustness claim or an annotated ID-switch measurement.
-4. Add automated discovery and optional CoTracker foreground/background residual evidence as separate variables; do not silently replace the manual-box baseline.
+4. Extend the validated single-candidate detector pilot to explicit multi-candidate selection, then add optional CoTracker foreground/background residual evidence as a separate variable; do not silently replace the manual-box baseline.
 5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
