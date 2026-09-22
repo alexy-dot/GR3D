@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-22 (first single-candidate automatic discovery pilot completed)
+Last updated: 2026-09-23 (first four-candidate SAM 2 pilot completed)
 
 ## Current objective
 
@@ -156,7 +156,9 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - The first automatic discovery pilot is complete on the T003 OSI interval. Faster R-CNN produced 121 thresholded person boxes over 31/31 frames in 19.00 seconds at 0.640 GiB peak allocation and selected a 0.9991-score prompt on source frame 111. The prompt-box IoU with the looser manual box is 0.35.
 - Automatic-prompt SAM 2 produced 31/31 non-empty masks in 14.70 seconds at 0.996 GiB. Against manual T003, mask IoU has minimum 0.8897, median 0.9549 and mean 0.9492; visual audit found no obvious identity switch, but no annotated switch rate is claimed.
 - The automatic masks yield six valid Pi3-linked states and remain dynamic at normalized-motion thresholds 2, 3 and 5. Median normalized motion is 7.8333 and direction consistency is 0.6008. This validates one single-candidate detector-to-motion path, not multi-candidate or cross-scene robustness. Full evidence is recorded in `research/experiments/2026-09-22-osi0000-automatic-person-discovery.md`.
-- `run_video_instance_tracking.py` now accepts either the original single prompt or a same-frame `tracks` list. Multi-candidate mode shares one SAM 2 state and writes an aggregate manifest plus one downstream-compatible manifest per candidate. The original single-prompt path remains covered, and the complete suite passes 65 tests; multi-candidate GPU inference is not yet validated.
+- `run_video_instance_tracking.py` now accepts either the original single prompt or a same-frame `tracks` list. Multi-candidate mode shares one SAM 2 state and writes an aggregate manifest plus one downstream-compatible manifest per candidate. The original single-prompt path remains covered, and the complete suite passes 65 tests.
+- The first four-candidate GPU run is complete at clean revision `11dd7ee`. It saved 124/124 masks in 23.46 seconds at 1.067 GiB peak allocation. The main person's 31 masks are byte-identical to the earlier single-candidate run, showing no multi-object perturbation for that target in this clip.
+- The three additional distant-person tracks expose the support gate's value: one is visible in only 14/31 masks and has two valid Pi3 states; the other two have zero valid Pi3 states. All three remain `uncertain` rather than being classified from person semantics. Their tiny masks and zero minimum adjacent IoU also expose fragmentation risk. Full evidence is recorded in `research/experiments/2026-09-23-osi0000-multi-person-tracking.md`.
 
 ### Paper-to-code coverage
 
@@ -220,7 +222,7 @@ After cloning on another machine, check out these revisions before reproducing t
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
-7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. One single-candidate automatic detector-to-motion run is also validated on that second pedestrian. Annotated ID-switch measurement, multi-candidate tracking, cross-scene automatic discovery and cross-window identity remain unvalidated.
+7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. Single- and four-candidate automatic detector/SAM runs are validated on one interval. Annotated ID-switch measurement, cross-scene automatic discovery, crowded overlap behavior and cross-window identity remain unvalidated.
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
@@ -237,7 +239,7 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
 3. Treat the completed moving-person/moving-person/parked-bicycle set as an initial manual-box policy check only; it is not enough for a general robustness claim or an annotated ID-switch measurement.
-4. Extend the validated single-candidate detector pilot to explicit multi-candidate selection, then add optional CoTracker foreground/background residual evidence as a separate variable; do not silently replace the manual-box baseline.
+4. Add optional CoTracker foreground/background residual evidence as a separate variable; do not silently replace the manual-box or detector-plus-SAM baselines.
 5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status

@@ -1,7 +1,7 @@
 # Dynamic-object tracking and hybrid 3D map TODO
 
 - Date: 2026-09-21
-- Status: Phase D0 manual-track pilot and one single-candidate Phase-D1 detector pilot complete on 2026-09-22; multi-candidate automation and full Phase D2 comparison remain open
+- Status: Phase D0 plus single- and four-candidate Phase-D1 detector/SAM pilots complete by 2026-09-23; CoTracker, annotated failure measurement and full Phase D2 comparison remain open
 - Priority gate: fix GitHub Issue #1 and complete the fixed-protocol static-ID MLLM ablation before claiming or prioritizing dynamic-scene results
 - Initial scope: one short monocular clip with one unambiguously moving person or vehicle
 
@@ -365,7 +365,7 @@ Primary references to inspect before implementation:
 ### Phase D1: automated object discovery
 
 - [x] Add Grounding DINO or a declared instance/panoptic front end; validated torchvision Faster R-CNN COCO V1 on the OSI 0000 walking-person interval without modifying source pixels.
-- [ ] Track multiple candidates with SAM 2.
+- [x] Track multiple candidates with SAM 2; four source-frame-111 person detections were propagated together, with one stable dynamic candidate and three candidates correctly gated as uncertain by insufficient 3D support.
 - [ ] Add CoTracker foreground/background residual evidence.
 - [ ] Measure ID switches, fragmentation and occlusion failures.
 
