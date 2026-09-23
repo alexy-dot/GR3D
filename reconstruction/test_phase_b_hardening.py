@@ -134,6 +134,36 @@ class PhaseBHardeningTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "different reconstruction runs"):
             self.validate(tuple(values))
 
+    def test_new_directory_input_identities_are_compared(self) -> None:
+        values = list(copy.deepcopy(fixtures()))
+        identity = {
+            "schema_version": 1,
+            "algorithm": "sha256",
+            "input_kind": "image_directory",
+            "combined_sha256": "directory",
+            "file_count": 1,
+            "ordered_entries": [
+                {"relative_path": "0001.png", "size_bytes": 3, "sha256": "image"}
+            ],
+        }
+        values[0]["source_input_identity"] = copy.deepcopy(identity)
+        values[1]["manifest"]["source_input_identity"] = copy.deepcopy(identity)
+        values[4]["manifest"]["source_input_identity"] = copy.deepcopy(identity)
+        self.validate(tuple(values))
+
+    def test_new_and_legacy_input_identity_mixture_is_rejected(self) -> None:
+        values = list(copy.deepcopy(fixtures()))
+        values[0]["source_input_identity"] = {
+            "schema_version": 1,
+            "algorithm": "sha256",
+            "input_kind": "file",
+            "combined_sha256": "video",
+            "file_count": 1,
+            "ordered_entries": [],
+        }
+        with self.assertRaisesRegex(ValueError, "new input identity"):
+            self.validate(tuple(values))
+
     def test_unmeasured_static_candidate_is_rejected(self) -> None:
         values = list(copy.deepcopy(fixtures()))
         values[1]["scene_instances"][0]["motion_state"] = "static"

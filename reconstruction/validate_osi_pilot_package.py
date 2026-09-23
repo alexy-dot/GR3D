@@ -8,6 +8,11 @@ import hashlib
 import json
 from pathlib import Path
 
+try:
+    from reconstruction.input_identity import comparable_identity
+except ModuleNotFoundError:
+    from input_identity import comparable_identity
+
 
 COMMON_RENDER_KEYS = (
     "color_by",
@@ -102,7 +107,20 @@ def validate_scene_relationships(
         "source_run_manifest_sha256"
     ):
         raise ValueError("package, scene table, and crops use different reconstruction runs")
-    if package_manifest.get("source_video_sha256") != scene_manifest.get(
+    identities = [
+        package_manifest.get("source_input_identity"),
+        scene_manifest.get("source_input_identity"),
+        crop_manifest.get("source_input_identity"),
+    ]
+    if any(identity is not None for identity in identities):
+        if not all(identity is not None for identity in identities):
+            raise ValueError(
+                "cannot compare new input identity with a legacy file-hash field"
+            )
+        comparable = [comparable_identity(identity) for identity in identities]
+        if comparable[0] != comparable[1] or comparable[0] != comparable[2]:
+            raise ValueError("package, scene table, and crops use different source inputs")
+    elif package_manifest.get("source_video_sha256") != scene_manifest.get(
         "source_video_sha256"
     ) or package_manifest.get("source_video_sha256") != crop_manifest.get(
         "source_video_sha256"

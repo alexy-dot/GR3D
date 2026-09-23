@@ -11,6 +11,11 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+try:
+    from reconstruction.input_identity import input_identity, legacy_video_sha256
+except ModuleNotFoundError:
+    from input_identity import input_identity, legacy_video_sha256
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -68,6 +73,7 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
 
     run_manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    source_input_identity = input_identity(Path(run_manifest["input"]))
     frame_records = [
         json.loads(line)
         for line in (run / "frames.txt").read_text(encoding="utf-8").splitlines()
@@ -168,7 +174,8 @@ def main() -> None:
             "scene_id": instances_payload["manifest"]["scene_id"],
             "point_observations_sha256": sha256(run / "point_observations.npz"),
             "source_run_manifest_sha256": sha256(run / "manifest.json"),
-            "source_video_sha256": sha256(Path(run_manifest["input"])),
+            "source_input_identity": source_input_identity,
+            "source_video_sha256": legacy_video_sha256(source_input_identity),
             "source_frames_modified": False,
             "crop_count": len(crops),
             "crops_with_warnings": sum(bool(item["quality_warnings"]) for item in crops),

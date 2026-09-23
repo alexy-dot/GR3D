@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import math
 import os
@@ -20,6 +19,15 @@ from typing import Mapping
 import numpy as np
 import torch
 from PIL import Image
+
+try:
+    from reconstruction.input_identity import (
+        file_sha256,
+        image_directory_files,
+        input_identity,
+    )
+except ModuleNotFoundError:
+    from input_identity import file_sha256, image_directory_files, input_identity
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -134,9 +142,7 @@ def load_image_directory(
     start_frame: int,
     max_frames: int,
 ) -> tuple[list[Image.Image], list[FrameRecord]]:
-    filenames = sorted(
-        file for file in path.iterdir() if file.suffix.lower() in {".png", ".jpg", ".jpeg"}
-    )
+    filenames = image_directory_files(path)
     selected = filenames[start_frame::interval][:max_frames]
     images = [Image.open(file).convert("RGB") for file in selected]
     records = [
@@ -230,14 +236,6 @@ def load_checkpoint(path: str) -> dict[str, torch.Tensor]:
     return torch.load(path, map_location="cpu", weights_only=False)
 
 
-def file_sha256(path: Path, chunk_size: int = 8 * 1024 * 1024) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(chunk_size), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def load_model(args: argparse.Namespace, device: torch.device) -> torch.nn.Module:
     if args.model == "pi3":
         from pi3.models.pi3 import Pi3
@@ -300,6 +298,8 @@ def main() -> None:
     validate_args(args)
     output_dir = Path(args.output).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_input = Path(args.input).expanduser().resolve()
+    source_input_identity = input_identity(resolved_input)
 
     images_cpu, frame_records, resized_size = load_frames(args)
     (output_dir / "frames.txt").write_text(
@@ -320,7 +320,8 @@ def main() -> None:
         "created_at": datetime.now(timezone.utc).isoformat(),
         "status": "frames_prepared" if args.dry_run else "running",
         "arguments": vars(args),
-        "input": str(Path(args.input).expanduser().resolve()),
+        "input": str(resolved_input),
+        "input_identity": source_input_identity,
         "frame_count": len(frame_records),
         "resized_width": resized_size[0],
         "resized_height": resized_size[1],

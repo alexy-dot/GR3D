@@ -15,8 +15,10 @@ import torch
 from PIL import Image
 
 if __package__:
+    from reconstruction.input_identity import input_identity
     from reconstruction.run_video_instance_tracking import extract_frames, git_state, sha256
 else:
+    from input_identity import input_identity
     from run_video_instance_tracking import extract_frames, git_state, sha256
 
 
@@ -217,6 +219,7 @@ def main() -> None:
         "status": "complete",
         "video": str(video),
         "video_sha256": sha256(video),
+        "source_input_identity": input_identity(video),
         "detector": {
             "model": MODEL_NAME,
             "weights": WEIGHTS_NAME,

@@ -10,6 +10,11 @@ import re
 import shutil
 from pathlib import Path
 
+try:
+    from reconstruction.input_identity import input_identity, legacy_video_sha256
+except ModuleNotFoundError:
+    from input_identity import input_identity, legacy_video_sha256
+
 
 ID_PATTERN = re.compile(r"\s*\(id:\s*\d+\)", flags=re.IGNORECASE)
 
@@ -274,11 +279,13 @@ def main() -> None:
         )
 
     run_manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    source_input_identity = input_identity(Path(run_manifest["input"]))
     manifest = {
         "status": "complete",
         "scene_id": args.scene_id,
         "purpose": "phase_b_3d_scene_id_evaluation_package",
-        "source_video_sha256": sha256(Path(run_manifest["input"])),
+        "source_input_identity": source_input_identity,
+        "source_video_sha256": legacy_video_sha256(source_input_identity),
         "source_run_manifest_sha256": sha256(run / "manifest.json"),
         "reconstruction_manifest": run_manifest,
         "frames": frames,

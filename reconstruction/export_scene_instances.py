@@ -10,6 +10,11 @@ import subprocess
 from pathlib import Path
 from typing import Iterable
 
+try:
+    from reconstruction.input_identity import input_identity, legacy_video_sha256
+except ModuleNotFoundError:
+    from input_identity import input_identity, legacy_video_sha256
+
 
 LAYOUT_CLASSES = {
     "wall", "building", "sky", "floor", "ceiling", "road", "sidewalk",
@@ -143,6 +148,11 @@ def main() -> None:
         else None
     )
     source_video = Path(run_manifest["input"]) if run_manifest and run_manifest.get("input") else None
+    source_input_identity = (
+        input_identity(source_video)
+        if source_video and source_video.exists()
+        else (run_manifest or {}).get("input_identity")
+    )
     instances = assign_scene_ids(
         payload["objects"], args.scene_id, args.center_quantization, args.layer
     )
@@ -162,8 +172,10 @@ def main() -> None:
                 sha256(run_manifest_path) if run_manifest_path and run_manifest_path.is_file() else None
             ),
             "source_video_sha256": (
-                sha256(source_video) if source_video and source_video.is_file() else None
+                legacy_video_sha256(source_input_identity)
+                if source_input_identity else None
             ),
+            "source_input_identity": source_input_identity,
             "source_object_count": len(payload["objects"]),
             "sort_key": "semantic_name_casefold, semantic_label, quantized_center_xyz, component_id",
             "center_quantization": args.center_quantization,

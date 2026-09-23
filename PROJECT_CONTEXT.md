@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-23 (Issue #2 frame-paired motion evidence hardened)
+Last updated: 2026-09-23 (Issue #3 deterministic file/directory input identity complete)
 
 ## Current objective
 
@@ -139,6 +139,8 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - `reconstruction/lift_tracks_to_3d.py` now intersects saved binary masks with exact Pi3 sample/pixel observations, checks run-manifest provenance and image shape, optionally erodes mask boundaries, saves selected raw point indices, and emits median centers, 5--95% boxes, MAD spread, confidence, and explicit insufficient-support warnings. Three focused tests plus five motion tests pass.
 - Motion post-processing now uses schema-v2 background records with explicit `from_frame`/`to_frame`, support counts, status and jitter. The classifier matches each displacement to the exact same frame pair; invalid 3D states, empty/insufficient masks, missing intervals and missing background support return `uncertain` with machine-readable reasons, preserved warnings and point counts instead of count/shape exceptions. Legacy saved jitter plus interval-support artifacts are converted explicitly, and the CLI accepts separate lifted-state and background-evidence files without manual JSON editing.
 - Synthetic coverage includes valid-invalid-valid, consecutive invalid states, empty masks, insufficient support, missing and wrong frame pairs, invalid background support, unchanged fully valid static/dynamic decisions, legacy conversion and a subprocess CLI handoff. The complete suite passes 84 tests. Replaying the existing OSI 0000 parked-bicycle control through the revised classifier retained `static` at thresholds 2/3/5 with normalized motion 0.4522 and 0.4659; no GPU inference was rerun. The replay artifact SHA-256 is `b23b5dda7e17d8d62f5f9d778559fbe38be98a1724041cf1390384854b277dad`.
+- Input identity schema v1 now gives MP4 files and Pi3 image directories one auditable provenance contract. Files preserve the historical streaming SHA-256; directories hash sorted top-level `.png/.jpg/.jpeg` entries with normalized relative names, sizes and per-file hashes, exactly matching loader membership/order. New structured identities cannot be silently mixed with legacy bare file hashes. Pi3, detection/tracking, alignment, scene export, crop extraction and OSI package paths use the shared helper.
+- The complete suite passes 92 tests after input-identity hardening. A real eight-image House dry run at 420x238 produced directory digest `5cf8d152e669c422e1277af9f887e051b582efc7ef978ffa800fc4a7cea46819`; its manifest SHA-256 is `7d900485c9a67fcaf7b8c41b188ceb840e66f7fda640564332c395d66c48ace7`. The 14-crop House replay preserved every prior crop hash and produced catalog SHA-256 `a5f4356c3e71d1021341d778aab9631b23c21fb31b2397bc4066d3c6a42e4376`. The OSI 0000 MP4 identity remains `cd4e3edb7dc8d6f96a9a169319fb24511f6f18cc264965ef27b2573a8be19536`, exactly matching historical video provenance. No model inference was rerun.
 - `reconstruction/build_static_dynamic_map.py` now creates derived, disjoint static/dynamic/uncertain artifacts from classified track-point indices and assigns state-scoped `S###/D###/U###` IDs. Dynamic evidence takes precedence over uncertain overlap, uncertain points are excluded from the confident static map, static tracks do not remove points, and the raw observation hash plus `raw_source_modified=false` are recorded.
 - `reconstruction/run_video_instance_tracking.py` is inference-validated with pinned SAM 2 revision `2b90b9f5ceec907a1c18123530e92e794ad901a4` and Hiera Tiny checkpoint SHA-256 `7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69`. The final clean run used 1.042 GiB peak allocated VRAM and 9.18 seconds.
 - The skating candidate is declared `D001` only within this bounded clip. It has eight valid Pi3-linked centers, 2,996--4,976 supporting points per state, median normalized motion 13.7566, direction consistency 0.8235, and remains dynamic at thresholds 2, 3, and 5. These are Pi3 model units and internal background-normalized evidence, not metric ground truth.
@@ -246,12 +248,11 @@ The executable task specification is `research/experiments/2026-09-21-3d-only-id
 
 The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. The bounded Phase D0 and Phase D1 pilots are complete; the full Phase D2 comparison remains open.
 
-1. Complete repository hardening Issue #3 by using one deterministic, versioned input identity for MP4 files and Pi3 image directories before the Phase-D2 comparison.
-2. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
-3. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
-4. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
-5. Run the fixed Phase-D2 comparison of unfiltered Pi3, semantic-only removal, tracked-mask removal and tracked-3D-motion removal on the same scene and views.
-6. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
+1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
+2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
+3. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
+4. Run the fixed Phase-D2 comparison of unfiltered Pi3, semantic-only removal, tracked-mask removal and tracked-3D-motion removal on the same scene and views.
+5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
 

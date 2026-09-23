@@ -106,6 +106,26 @@ Each run writes:
   these preserve the filtered point-to-frame/pixel mapping required to fuse 2D
   semantic labels into a 3D voxel grid
 
+## Input identity and provenance
+
+`manifest.json` records a versioned `input_identity` for both supported input forms.
+Schema version 1 uses SHA-256 and contains `input_kind`, `combined_sha256`,
+`file_count`, and `ordered_entries` with normalized relative names, byte sizes,
+and per-file hashes.
+
+For a video or other file input, `combined_sha256` is exactly the historical
+streaming file SHA-256. Existing `video_sha256` and `source_video_sha256` fields
+therefore remain populated and comparable for file inputs. For an image directory,
+the identity includes only sorted top-level `.png`, `.jpg`, and `.jpeg` files, which
+is the same set and order used by the Pi3 loader. Its combined digest hashes the
+versioned ordered-entry description; unsupported and nested files do not affect it.
+Legacy file-hash fields are `null` for directory inputs.
+
+New manifests compare the structured identity. A new directory identity is never
+silently compared with a legacy bare video hash: validators reject a mixed package,
+and track alignment records an explicit warning when only a legacy track hash is
+available for an image-directory Pi3 run.
+
 Validate this interface before semantic fusion:
 
 ```bash

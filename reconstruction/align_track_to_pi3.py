@@ -10,6 +10,15 @@ from pathlib import Path
 
 from PIL import Image
 
+try:
+    from reconstruction.input_identity import (
+        comparable_identity,
+        input_identity,
+        legacy_video_sha256,
+    )
+except ModuleNotFoundError:
+    from input_identity import comparable_identity, input_identity, legacy_video_sha256
+
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -46,12 +55,26 @@ def main() -> None:
     pi3_input = Path(run_manifest["input"])
     provenance_warnings = []
     if pi3_input.exists():
-        pi3_video_sha256 = sha256(pi3_input)
-        if track.get("video_sha256") != pi3_video_sha256:
-            raise ValueError("tracking and Pi3 runs use different source videos")
+        pi3_input_identity = input_identity(pi3_input)
+        pi3_video_sha256 = legacy_video_sha256(pi3_input_identity)
+        track_input_identity = track.get("source_input_identity")
+        if track_input_identity is not None:
+            if comparable_identity(track_input_identity) != comparable_identity(
+                pi3_input_identity
+            ):
+                raise ValueError("tracking and Pi3 runs use different source inputs")
+        elif pi3_video_sha256 is not None:
+            if track.get("video_sha256") != pi3_video_sha256:
+                raise ValueError("tracking and Pi3 runs use different source videos")
+            provenance_warnings.append("legacy_tracking_video_hash_compared")
+        else:
+            provenance_warnings.append(
+                "legacy_tracking_identity_not_comparable_to_image_directory"
+            )
     else:
+        pi3_input_identity = None
         pi3_video_sha256 = None
-        provenance_warnings.append("pi3_input_video_unavailable_for_hash_validation")
+        provenance_warnings.append("pi3_input_unavailable_for_identity_validation")
     output = args.output.resolve()
     masks_dir = output / "masks" / track["track_candidate_id"]
     masks_dir.mkdir(parents=True, exist_ok=True)
@@ -84,6 +107,8 @@ def main() -> None:
         "source_track_manifest_sha256": sha256(source_path),
         "source_video_sha256": track.get("video_sha256"),
         "pi3_video_sha256": pi3_video_sha256,
+        "source_input_identity": track.get("source_input_identity"),
+        "pi3_input_identity": pi3_input_identity,
         "provenance_warnings": provenance_warnings,
         "target_size_wh": list(size),
         "matched_frame_count": len(aligned),

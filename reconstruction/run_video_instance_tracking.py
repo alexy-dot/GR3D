@@ -16,6 +16,11 @@ import cv2
 import numpy as np
 import torch
 
+if __package__:
+    from reconstruction.input_identity import input_identity
+else:
+    from input_identity import input_identity
+
 
 def normalize_prompts(payload: dict) -> list[dict]:
     prompts = payload.get("tracks") if "tracks" in payload else [payload]
@@ -235,6 +240,7 @@ def main() -> None:
         "status": "complete",
         "video": str(video),
         "video_sha256": sha256(video),
+        "source_input_identity": input_identity(video),
         "checkpoint": str(args.checkpoint.resolve()),
         "checkpoint_sha256": sha256(args.checkpoint.resolve()),
         "sam2_revision": args.sam2_revision,
