@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "annotation_scope": "manual_visual_audit_of_two_assessable_within_clip_tracks",
+  "review_method": {
+    "description": "Single-reviewer inspection of full-frame contact sheets with SAM 2 masks overlaid in red; labels are audit judgments, not independent ground truth.",
+    "source_pixels_modified": false,
+    "persistent_object_ids_added_to_source_frames": false
+  },
+  "label_definitions": {
+    "association": ["correct_target", "wrong_target", "not_assessable"],
+    "target_visibility": ["visible", "partially_occluded", "fully_occluded", "not_visible"],
+    "mask_quality": ["usable", "partial", "fragmented", "empty"]
+  },
+  "tracks": [
+    {
+      "track_candidate_id": "T_AUTO_001",
+      "target_description": "central black-clothed walking person",
+      "source_track_manifest_sha256": "58cf680f319fe093764380ab6feb17408b88a0505559b3d072f7a078e2966ffe",
+      "review_contact_sheet_sha256": "105a5cd3f57cc352fb47009f2e323968ccf57a5261c47d5bb52f58a2c0fdc567",
+      "frame_count": 31,
+      "frame_ranges": [
+        {
+          "start_sample_index": 0,
+          "end_sample_index": 30,
+          "association": "correct_target",
+          "target_visibility": "visible",
+          "mask_quality": "usable"
+        }
+      ],
+      "id_switch_events": [],
+      "fragmentation_episodes": [],
+      "occlusion_episodes": []
+    },
+    {
+      "track_candidate_id": "T002",
+      "target_description": "parked bicycle beside the right-side bicycle row",
+      "source_track_manifest_sha256": "f87cecda6875102493aa6a9f963e69c639854709b28a0d3b870f543ab1932b5f",
+      "review_contact_sheet_sha256": "c70f8270617c06068bcf907593b2e63712c4044985f032acb71758f35a8ed73a",
+      "frame_count": 39,
+      "frame_ranges": [
+        {
+          "start_sample_index": 0,
+          "end_sample_index": 28,
+          "association": "correct_target",
+          "target_visibility": "visible",
+          "mask_quality": "usable"
+        },
+        {
+          "start_sample_index": 29,
+          "end_sample_index": 29,
+          "association": "correct_target",
+          "target_visibility": "partially_occluded",
+          "mask_quality": "partial"
+        },
+        {
+          "start_sample_index": 30,
+          "end_sample_index": 30,
+          "association": "not_assessable",
+          "target_visibility": "fully_occluded",
+          "mask_quality": "empty"
+        },
+        {
+          "start_sample_index": 31,
+          "end_sample_index": 31,
+          "association": "correct_target",
+          "target_visibility": "partially_occluded",
+          "mask_quality": "fragmented"
+        },
+        {
+          "start_sample_index": 32,
+          "end_sample_index": 32,
+          "association": "correct_target",
+          "target_visibility": "partially_occluded",
+          "mask_quality": "partial"
+        },
+        {
+          "start_sample_index": 33,
+          "end_sample_index": 38,
+          "association": "correct_target",
+          "target_visibility": "visible",
+          "mask_quality": "usable"
+        }
+      ],
+      "id_switch_events": [],
+      "fragmentation_episodes": [
+        {
+          "start_sample_index": 30,
+          "end_sample_index": 31,
+          "recovered_at_sample_index": 32,
+          "description": "one fully occluded empty mask followed by a small same-target fragment"
+        }
+      ],
+      "occlusion_episodes": [
+        {
+          "start_sample_index": 29,
+          "end_sample_index": 32,
+          "occluder": "walking person",
+          "fully_occluded_sample_indices": [30]
+        }
+      ]
+    }
+  ],
+  "excluded_tracks": [
+    {
+      "track_candidate_ids": ["T_AUTO_002", "T_AUTO_003", "T_AUTO_004"],
+      "reason": "targets are absent for long spans or too small for reliable identity annotation at the available resolution"
+    }
+  ],
+  "limitations": [
+    "single_reviewer_not_independent_ground_truth",
+    "two_tracks_from_one_scene",
+    "contact_sheet_review_not_pixel_accurate_mask_annotation",
+    "three_small_automatic_candidates_excluded_as_unreliably_assessable"
+  ]
+}
