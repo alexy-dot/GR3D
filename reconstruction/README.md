@@ -399,11 +399,14 @@ COTRACKER_ROOT=/path/to/co-tracker \
 python reconstruction/run_cotracker_residual.py \
   outputs/automatic_track/track_manifest.json \
   outputs/automatic_track/cotracker_residual \
-  --checkpoint /path/to/scaled_offline.pth
+  --checkpoint /path/to/scaled_offline.pth \
+  --cotracker-revision 82e02e8029753ad4ef13cf06be7f4fc5facdda4d
 ```
 
 The output records point visibility, invalid intervals, raw and residual displacement,
-checkpoint/source revisions and hashes. It is auxiliary 2D motion evidence, not an
+checkpoint size/hash, and the explicitly declared source revision. A local Git checkout
+is checked against that declaration when available; archive installs remain reproducible
+without a `.git` directory. It is auxiliary 2D motion evidence, not an
 object-identity source or a replacement for Pi3-linked 3D motion classification.
 
 ## Increasing the workload

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -11,11 +13,23 @@ from reconstruction.run_cotracker_residual import (
     GROUP_BACKGROUND,
     GROUP_FOREGROUND,
     analyze_residuals,
+    resolve_source_revision,
     sample_queries,
 )
 
 
 class CoTrackerResidualTests(unittest.TestCase):
+    def test_archive_source_uses_explicit_full_revision(self) -> None:
+        revision = "82e02e8029753ad4ef13cf06be7f4fc5facdda4d"
+        with tempfile.TemporaryDirectory() as directory:
+            declared, detected = resolve_source_revision(Path(directory), revision.upper())
+        self.assertEqual(declared, revision)
+        self.assertIsNone(detected)
+
+    def test_abbreviated_source_revision_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "full 40-character"):
+            resolve_source_revision(None, "82e02e8")
+
     def test_query_sampling_separates_eroded_interior_and_background_ring(self) -> None:
         mask = np.zeros((40, 40), dtype=np.uint8)
         mask[15:25, 15:25] = 1

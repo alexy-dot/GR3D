@@ -8,6 +8,7 @@ import json
 import math
 import os
 import platform
+import re
 import subprocess
 import sys
 import time
@@ -203,12 +204,31 @@ def repository_revision(path: Path) -> str | None:
         return None
 
 
+def resolve_source_revision(
+    source_root: Path | None, declared_revision: str
+) -> tuple[str, str | None]:
+    revision = declared_revision.strip().lower()
+    if not re.fullmatch(r"[0-9a-f]{40}", revision):
+        raise ValueError("CoTracker revision must be a full 40-character Git commit hash")
+    detected = repository_revision(source_root) if source_root is not None else None
+    if detected is not None and detected.lower() != revision:
+        raise ValueError(
+            f"declared CoTracker revision {revision} does not match source checkout {detected}"
+        )
+    return revision, detected
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("track_manifest", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--cotracker-root", type=Path)
+    parser.add_argument(
+        "--cotracker-revision",
+        required=True,
+        help="full Git commit hash for the CoTracker source, including archive installs",
+    )
     parser.add_argument("--exclude-track-manifest", type=Path, action="append", default=[])
     parser.add_argument("--foreground-points", type=int, default=64)
     parser.add_argument("--background-points", type=int, default=96)
@@ -278,6 +298,9 @@ def main() -> None:
     if cotracker_root is not None:
         cotracker_root = cotracker_root.resolve()
         sys.path.insert(0, str(cotracker_root))
+    source_revision, detected_source_revision = resolve_source_revision(
+        cotracker_root, args.cotracker_revision
+    )
     from cotracker.predictor import CoTrackerPredictor
 
     device = torch.device(args.device)
@@ -336,9 +359,12 @@ def main() -> None:
         "model": {
             "name": "CoTracker3 offline",
             "checkpoint": str(checkpoint),
+            "checkpoint_bytes": checkpoint.stat().st_size,
             "checkpoint_sha256": sha256(checkpoint),
             "source_root": str(cotracker_root) if cotracker_root else None,
-            "source_revision": repository_revision(cotracker_root) if cotracker_root else None,
+            "source_revision": source_revision,
+            "detected_source_revision": detected_source_revision,
+            "source_revision_git_verified": detected_source_revision is not None,
         },
         "parameters": {
             "prompt_sample_index": prompt_index,
