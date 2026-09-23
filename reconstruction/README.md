@@ -409,6 +409,18 @@ is checked against that declaration when available; archive installs remain repr
 without a `.git` directory. It is auxiliary 2D motion evidence, not an
 object-identity source or a replacement for Pi3-linked 3D motion classification.
 
+Validate and summarize a manually reviewed track-failure annotation file:
+
+```bash
+python reconstruction/score_track_failure_annotations.py \
+  research/annotations/2026-09-23-osi0000-track-failure-labels.json \
+  outputs/track_failure_scores.json
+```
+
+The scorer requires complete, non-overlapping frame-range coverage and reports observed
+association, ID-switch, fragmentation, occlusion and mask-failure counts. These labels
+remain a declared review subset rather than benchmark ground truth.
+
 ## Increasing the workload
 
 Change one variable at a time:

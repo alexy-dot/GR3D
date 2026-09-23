@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-23 (CoTracker moving/static residual pilot completed)
+Last updated: 2026-09-23 (bounded Phase-D1 failure annotation completed)
 
 ## Current objective
 
@@ -159,9 +159,10 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 - `run_video_instance_tracking.py` now accepts either the original single prompt or a same-frame `tracks` list. Multi-candidate mode shares one SAM 2 state and writes an aggregate manifest plus one downstream-compatible manifest per candidate. The original single-prompt path remains covered, and the complete suite passes 65 tests.
 - The first four-candidate GPU run is complete at clean revision `11dd7ee`. It saved 124/124 masks in 23.46 seconds at 1.067 GiB peak allocation. The main person's 31 masks are byte-identical to the earlier single-candidate run, showing no multi-object perturbation for that target in this clip.
 - The three additional distant-person tracks expose the support gate's value: one is visible in only 14/31 masks and has two valid Pi3 states; the other two have zero valid Pi3 states. All three remain `uncertain` rather than being classified from person semantics. Their tiny masks and zero minimum adjacent IoU also expose fragmentation risk. Full evidence is recorded in `research/experiments/2026-09-23-osi0000-multi-person-tracking.md`.
-- The optional CoTracker3 auxiliary stage is implemented in `run_cotracker_residual.py`: it deterministically samples eroded foreground and background-ring queries, records point visibility, fits a robust local affine background model, and exports foreground residual motion without changing the Pi3 classification. Explicit source revision is required even for archive installs, and a regression test prevents nested archives from inheriting the containing repository's revision. The complete suite passes 71 tests.
+- The optional CoTracker3 auxiliary stage is implemented in `run_cotracker_residual.py`: it deterministically samples eroded foreground and background-ring queries, records point visibility, fits a robust local affine background model, and exports foreground residual motion without changing the Pi3 classification. Explicit source revision is required even for archive installs, and a regression test prevents nested archives from inheriting the containing repository's revision.
 - Official CoTracker source revision `82e02e8029753ad4ef13cf06be7f4fc5facdda4d` and `scaled_offline.pth` (101,890,938 bytes; SHA-256 `2670d4562ed69326dda775a26e54883925cd11b6fc9b24cb7aa9f8078bce7834`) are inference-validated. The official host timed out, so the same hash-identified object was retrieved through `hf-mirror.com`; source/archive/checkpoint provenance is recorded in `research/experiments/2026-09-23-cotracker-motion-residual-pilot.md`.
 - On the fixed OSI 0000 pair, the moving person's normalized CoTracker residual median/P90 is 2.7778/6.6717 over 26 valid intervals, versus 1.9046/3.1840 over 36 valid intervals for the parked bicycle. The distributions overlap: 47.22% of stationary-control intervals exceed 2, while only 23.08% of moving intervals exceed 5. This supports auxiliary ranking evidence, not a universal threshold or replacement of the Pi3 `S/D/U` decision.
+- A compact manual failure-annotation format and `score_track_failure_annotations.py` now validate complete non-overlapping frame coverage and summarize within-clip identity, occlusion and fragmentation evidence. On two visually assessable OSI 0000 tracks, 69/70 frames were identity-assessable and all 69 remained on the intended target; no ID switch was observed. The parked bicycle has one four-frame occlusion episode and one two-frame empty/fragmented episode before correct recovery. Three small or absent automatic candidates were excluded as not reliably annotatable. This is a single-reviewer pilot, not a general ID-switch-rate estimate. The complete suite passes 74 tests; details are in `research/experiments/2026-09-23-osi0000-track-failure-annotation.md`.
 
 ### Paper-to-code coverage
 
@@ -230,7 +231,7 @@ After cloning on another machine, check out these revisions before reproducing t
 4. The current baseline has not yet been compared against ground-truth trajectory or known metric distances.
 5. `Pi3XVO` still retains the selected image tensor and merged dense points in memory; it is a medium-sequence validation step, not the final unbounded map store.
 6. VGGT-Long's Pi3 path and loop closure have been inspected but not executed in this project.
-7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. The control did not falsely remove the parked target; the second dynamic track is deterministic across a rerun. Single- and four-candidate automatic detector/SAM runs and a two-track-class CoTracker residual pilot are validated on one OSI scene. Annotated ID-switch measurement, cross-scene automatic discovery, crowded overlap behavior, CoTracker calibration and cross-window identity remain unvalidated.
+7. SAM 2 manual-box propagation is validated for two moving-person pilots and one parked-bicycle negative control. Single- and four-candidate automatic detector/SAM runs, a two-track-class CoTracker residual pilot and a two-track/70-frame manual failure audit are complete on one OSI scene. The audit observed no switch but one recoverable bicycle fragmentation event; it does not cover the three tiny/absent automatic candidates. Independent annotation, cross-scene discovery, crowded overlap behavior, CoTracker calibration and cross-window identity remain unvalidated.
 8. Keep this repository isolated from earlier Omni-View workspaces. Git must exclude weights, PDFs, outputs, scratch files, and independent third-party clones.
 9. The static house views show that furniture can remain visually recognizable in the original-Pi3 raw projection, but it is still unknown whether an MLLM can reliably match those regions to objects in an original frame.
 10. GR3D's ID ablation does not directly answer the proposed no-ID-render question: that ablation removes the explicit link between textual object geometry and image regions, whereas the proposed method supplies geometry visually and omits the indexed geometry text. A dedicated controlled evaluation is required.
@@ -242,12 +243,12 @@ After cloning on another machine, check out these revisions before reproducing t
 
 The executable task specification is `research/experiments/2026-09-21-3d-only-id-dynamic-map-todo.md`.
 
-The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. Phase D0 and the initial detector/SAM/CoTracker Phase-D1 path are complete; annotated failure measurement and the full Phase D2 comparison remain open.
+The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. The bounded Phase D0 and Phase D1 pilots are complete; the full Phase D2 comparison remains open.
 
 1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
 2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
-3. Treat the completed moving-person/moving-person/parked-bicycle set as an initial manual-box policy check only; it is not enough for a general robustness claim or an annotated ID-switch measurement.
-4. Measure annotated ID switches, fragmentation and occlusion failures on a small fixed subset; the existing audits are deterministic but not ground truth.
+3. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
+4. Run the fixed Phase-D2 comparison of unfiltered Pi3, semantic-only removal, tracked-mask removal and tracked-3D-motion removal on the same scene and views.
 5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
