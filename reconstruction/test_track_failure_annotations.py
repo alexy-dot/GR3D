@@ -19,7 +19,7 @@ def track_with_ranges(ranges: list[dict], frame_count: int = 3) -> dict:
 
 
 class TrackFailureAnnotationTests(unittest.TestCase):
-    def test_scores_assessable_identity_and_mask_failures(self) -> None:
+    def test_scores_assessable_identity_and_non_usable_masks(self) -> None:
         payload = {
             "tracks": [
                 track_with_ranges(
@@ -48,7 +48,7 @@ class TrackFailureAnnotationTests(unittest.TestCase):
         self.assertEqual(
             result["observed_correct_association_fraction_on_assessable_frames"], 1.0
         )
-        self.assertEqual(result["mask_failure_frame_count"], 1)
+        self.assertEqual(result["non_usable_mask_frame_count"], 1)
 
     def test_rejects_overlapping_ranges(self) -> None:
         base = {

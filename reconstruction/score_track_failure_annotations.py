@@ -99,8 +99,8 @@ def score_track(track: dict) -> dict:
         "id_switch_event_count": len(id_switch_events),
         "fragmentation_episode_count": len(fragmentation),
         "occlusion_episode_count": len(occlusion),
-        "mask_failure_frame_count": quality_counts["fragmented"] + quality_counts["empty"],
-        "mask_failure_frame_fraction": (
+        "non_usable_mask_frame_count": quality_counts["fragmented"] + quality_counts["empty"],
+        "non_usable_mask_frame_fraction": (
             quality_counts["fragmented"] + quality_counts["empty"]
         )
         / len(labels),
@@ -115,7 +115,7 @@ def score_annotations(payload: dict) -> dict:
     total_frames = sum(track["frame_count"] for track in tracks)
     assessable = sum(track["identity_assessable_frame_count"] for track in tracks)
     correct = sum(track["correct_target_frame_count"] for track in tracks)
-    failures = sum(track["mask_failure_frame_count"] for track in tracks)
+    non_usable = sum(track["non_usable_mask_frame_count"] for track in tracks)
     return {
         "track_count": len(tracks),
         "reviewed_frame_count": total_frames,
@@ -129,8 +129,8 @@ def score_annotations(payload: dict) -> dict:
             track["fragmentation_episode_count"] for track in tracks
         ),
         "occlusion_episode_count": sum(track["occlusion_episode_count"] for track in tracks),
-        "mask_failure_frame_count": failures,
-        "mask_failure_frame_fraction": failures / total_frames,
+        "non_usable_mask_frame_count": non_usable,
+        "non_usable_mask_frame_fraction": non_usable / total_frames,
         "tracks": tracks,
     }
 
