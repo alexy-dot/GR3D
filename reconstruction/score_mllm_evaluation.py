@@ -80,11 +80,23 @@ def main() -> None:
     parser.add_argument("predictions", type=Path)
     parser.add_argument("ground_truth", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument(
+        "--condition",
+        action="append",
+        help="Score only this condition; repeat to score a declared subset.",
+    )
     args = parser.parse_args()
     request_payload = json.loads(args.requests.read_text(encoding="utf-8"))
     predictions = json.loads(args.predictions.read_text(encoding="utf-8"))
     truth = json.loads(args.ground_truth.read_text(encoding="utf-8"))
-    result = score_rows(request_payload["requests"], predictions, truth)
+    requests = request_payload["requests"]
+    if args.condition:
+        selected = set(args.condition)
+        requests = [row for row in requests if row["condition"] in selected]
+        missing = selected - {row["condition"] for row in requests}
+        if missing:
+            raise ValueError(f"unknown conditions: {sorted(missing)}")
+    result = score_rows(requests, predictions, truth)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"Scored {len(result['rows'])} predictions at {args.output}")

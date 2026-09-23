@@ -130,7 +130,7 @@ This TODO does not claim:
 
 ## Implementation checkpoint
 
-The deterministic single-run static-candidate representation and controlled input packaging are implemented and recorded in `2026-09-21-3d-only-id-static-pilot.md`. The first fixed-protocol Qwen3-VL ablation is recorded in `2026-09-22-dashscope-mllm-run.md`; 3D-only IDs did not improve OSI scene 0000 over raw frames. The dynamic gate is therefore satisfied, but this single scene is not a general representation result.
+The deterministic single-run static-candidate representation and controlled input packaging are implemented and recorded in `2026-09-21-3d-only-id-static-pilot.md`. The first 60-request Qwen3-VL run omitted the declared scene table and is retained only as an image-only ID-render experiment. The corrected protocol-v2 rerun of both affected ID conditions is recorded in `2026-09-22-dashscope-mllm-run.md`; on OSI scene 0000, the scene-table condition scored 2/10 and the scene-table-plus-crops condition 1/10. This bounded result does not establish a general representation advantage.
 
 ## First executable step on Windows
 

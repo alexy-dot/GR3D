@@ -446,10 +446,21 @@ python reconstruction/prepare_mllm_evaluation.py \
   outputs/osi_0000_mllm_eval/requests.json
 ```
 
-This creates 60 requests for the current six-condition, ten-question pilot. It records
-ordered image paths and hashes but never reads `ground_truth.json`. After a declared model
-adapter has saved one `{"request_id": ..., "answer": ...}` prediction per request, score it
-without claiming the diagnostic numerical metrics are the official OSI evaluator:
+This creates 60 protocol-v2 requests for the current six-condition, ten-question pilot.
+Only the two declared 3D-ID conditions receive the answer-blind scene table; representative
+crops carry an explicit `S###` association. Raw and no-ID conditions receive no scene-table
+context. The request generator records ordered image paths and hashes but never reads
+`ground_truth.json`.
+
+The DashScope runner writes predictions separately from a required `.run.json` sidecar.
+The sidecar binds a resumable run to the request and package hashes, model, endpoint,
+decoding settings, and protocol version. A metadata mismatch or duplicate request ID stops
+the run instead of mixing predictions. Use a new output path for protocol v2; protocol-v1
+predictions remain an image-only ID-render result.
+
+After a declared model adapter has saved one `{"request_id": ..., "answer": ...}` prediction
+per request, score it without claiming the diagnostic numerical metrics are the official
+OSI evaluator:
 
 ```bash
 python reconstruction/score_mllm_evaluation.py \
@@ -458,3 +469,7 @@ python reconstruction/score_mllm_evaluation.py \
   outputs/osi_0000_phase_b_package_hardened/ground_truth.json \
   outputs/osi_0000_mllm_eval/scores.json
 ```
+
+For a deliberate partial rerun, repeat `--condition` once per included condition. The
+predictions file must still contain exactly one result for every selected request and no
+others.
