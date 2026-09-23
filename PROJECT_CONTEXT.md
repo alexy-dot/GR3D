@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-23 (Issue #3 deterministic file/directory input identity complete)
+Last updated: 2026-09-23 (Issue #3 complete; Windows Git synchronization moved to SSH 443)
 
 ## Current objective
 
@@ -259,5 +259,5 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 - Main repository remote: `https://github.com/alexy-dot/GR3D.git` (`origin`).
 - Repository visibility: public, explicitly confirmed by the user before the first push.
 - Main branch: maintained as a focused GR3D reconstruction workspace.
-- GitHub HTTPS connectivity briefly failed after the S001 milestone and again on 2026-09-23. The later failure was isolated to the DNS-selected official edge `20.205.243.166`: ICMP worked but TCP 443 timed out/reset, while `api.github.com`, `ssh.github.com:443`, and multiple other addresses from GitHub's official `/meta` response were reachable. This Windows checkout now has a repository-local, untracked `http.curloptResolve=github.com:443:20.201.28.151`; normal `git ls-remote` and the push through commit `98f84a2` succeeded with TLS hostname validation intact. Replace or remove the local override if that official edge later becomes unavailable. The repository-local credential username remains pinned to `alexy-dot` because Windows Credential Manager contains two GitHub accounts.
+- GitHub HTTPS Git traffic repeatedly timed out or reset across DNS-selected and manually tested official web/git edges, while `api.github.com` and `ssh.github.com:443` remained reachable. The Windows checkout no longer uses a fixed `http.curloptResolve`. Its `origin` is `ssh://git@ssh.github.com:443/alexy-dot/GR3D.git`, with a repository-scoped writable deploy key at `C:/Users/dell/.ssh/id_ed25519_gr3d` selected by the repository-local `core.sshCommand`. The observed Ed25519 host fingerprint exactly matched GitHub's published `SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU`. Authenticated `ls-remote`, `fetch`, and `push` all succeeded on 2026-09-23. The private key remains outside Git and must not be copied into the repository; another machine should use its own credential or deploy key.
 - Codex Remote troubleshooting: intentionally paused.
