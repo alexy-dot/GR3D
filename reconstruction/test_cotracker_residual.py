@@ -13,6 +13,7 @@ from reconstruction.run_cotracker_residual import (
     GROUP_BACKGROUND,
     GROUP_FOREGROUND,
     analyze_residuals,
+    repository_revision,
     resolve_source_revision,
     sample_queries,
 )
@@ -25,6 +26,11 @@ class CoTrackerResidualTests(unittest.TestCase):
             declared, detected = resolve_source_revision(Path(directory), revision.upper())
         self.assertEqual(declared, revision)
         self.assertIsNone(detected)
+
+    def test_archive_nested_in_parent_repository_does_not_inherit_revision(self) -> None:
+        source_directory = Path(__file__).resolve().parent
+        self.assertFalse((source_directory / ".git").exists())
+        self.assertIsNone(repository_revision(source_directory))
 
     def test_abbreviated_source_revision_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "full 40-character"):

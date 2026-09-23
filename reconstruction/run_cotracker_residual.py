@@ -192,6 +192,8 @@ def analyze_residuals(
 
 
 def repository_revision(path: Path) -> str | None:
+    if not (path / ".git").exists():
+        return None
     try:
         return subprocess.run(
             ["git", "rev-parse", "HEAD"],
