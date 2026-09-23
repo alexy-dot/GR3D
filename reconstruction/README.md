@@ -390,6 +390,22 @@ python reconstruction/render_dynamic_tracks.py \
 The resulting ID is valid only within the bounded clip. Background-normalized Pi3 motion
 is not a physical metric trajectory or proof of cross-window identity.
 
+Optionally add CoTracker3 point evidence as a separate diagnostic. Sample points from
+the eroded target-mask interior and a surrounding background ring, then explain local
+camera/background motion with a robust affine fit:
+
+```bash
+COTRACKER_ROOT=/path/to/co-tracker \
+python reconstruction/run_cotracker_residual.py \
+  outputs/automatic_track/track_manifest.json \
+  outputs/automatic_track/cotracker_residual \
+  --checkpoint /path/to/scaled_offline.pth
+```
+
+The output records point visibility, invalid intervals, raw and residual displacement,
+checkpoint/source revisions and hashes. It is auxiliary 2D motion evidence, not an
+object-identity source or a replacement for Pi3-linked 3D motion classification.
+
 ## Increasing the workload
 
 Change one variable at a time:
