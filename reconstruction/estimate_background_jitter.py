@@ -25,10 +25,10 @@ def estimate_jitter(
     frames: np.ndarray,
     foreground: dict[int, set[int]],
     max_points: int,
-) -> tuple[list[float], list[int], list[dict]]:
+) -> tuple[list[dict], list[int]]:
     if max_points < 1:
         raise ValueError("max_points must be positive")
-    values, supports = [], []
+    intervals = []
     frame_ids = sorted(foreground)
     for first, second in zip(frame_ids, frame_ids[1:]):
         a_idx = np.flatnonzero(frames == first)
@@ -39,14 +39,28 @@ def estimate_jitter(
             a_idx = a_idx[np.linspace(0, len(a_idx) - 1, max_points, dtype=int)]
         if len(b_idx) > max_points:
             b_idx = b_idx[np.linspace(0, len(b_idx) - 1, max_points, dtype=int)]
+        record = {
+            "from_frame": first,
+            "to_frame": second,
+            "from_points": len(a_idx),
+            "to_points": len(b_idx),
+        }
         if not len(a_idx) or not len(b_idx):
-            raise ValueError("an interval has no background support")
+            intervals.append({
+                **record,
+                "status": "missing_background_support",
+                "background_jitter": None,
+            })
+            continue
         a, b = points[a_idx], points[b_idx]
         ab = cKDTree(b).query(a, k=1, workers=-1)[0]
         ba = cKDTree(a).query(b, k=1, workers=-1)[0]
-        values.append(float(np.median(np.concatenate([ab, ba]))))
-        supports.append({"from_frame": first, "to_frame": second, "from_points": len(a), "to_points": len(b)})
-    return values, frame_ids, supports
+        intervals.append({
+            **record,
+            "status": "valid",
+            "background_jitter": float(np.median(np.concatenate([ab, ba]))),
+        })
+    return intervals, frame_ids
 
 
 def main() -> None:
@@ -62,12 +76,12 @@ def main() -> None:
         points, frames = archive["points"], archive["frame_index"].astype(int)
     with np.load(selected_path) as archive:
         foreground = {int(name): set(archive[name].astype(int).tolist()) for name in archive.files}
-    values, frame_ids, supports = estimate_jitter(points, frames, foreground, args.max_points)
+    intervals, frame_ids = estimate_jitter(points, frames, foreground, args.max_points)
     payload = {
+        "schema_version": 2,
         "method": "symmetric_nearest_neighbor_median",
-        "background_jitter": values,
+        "background_intervals": intervals,
         "frame_ids": frame_ids,
-        "interval_support": supports,
         "max_points_per_frame": args.max_points,
         "observations_sha256": sha256(observations_path),
         "selected_indices_sha256": sha256(selected_path),

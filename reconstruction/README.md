@@ -370,10 +370,24 @@ python reconstruction/estimate_background_jitter.py \
   outputs/dynamic_skating_pilot/background_jitter.json
 ```
 
-`classify_track_motion.py` consumes the saved 3D states plus the saved background-jitter
-array. Use thresholds `2 3 5`, preserve the full sensitivity sweep, and assign `D###`
-only after the motion decision. `build_static_dynamic_map.py` writes a derived static PLY
-and separate dynamic/uncertain observations without modifying the raw Pi3 run.
+The background artifact stores explicit `from_frame`/`to_frame` intervals. Missing
+background support is saved as invalid evidence rather than raising. Pass the two saved
+artifacts directly to the classifier; no combined JSON or manual editing is required:
+
+```bash
+python reconstruction/classify_track_motion.py \
+  outputs/dynamic_skating_pilot/lifted_track/track_3d_states.json \
+  outputs/dynamic_skating_pilot/motion_classification.json \
+  --background-evidence outputs/dynamic_skating_pilot/background_jitter.json \
+  --thresholds 2 3 5
+```
+
+The classifier pairs every object displacement with the exact same background frame
+interval. Invalid 3D states, occlusion gaps, missing intervals, or invalid background
+support produce an auditable `uncertain` result with preserved warnings and point counts.
+Assign `D###` only after the motion decision. `build_static_dynamic_map.py` writes a
+derived static PLY and separate dynamic/uncertain observations without modifying the raw
+Pi3 run.
 
 Render the decision from identical views:
 
