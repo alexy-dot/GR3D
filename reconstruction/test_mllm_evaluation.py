@@ -164,6 +164,19 @@ class MllmEvaluationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "both predictions"):
                 load_resume_state(output, root / "predictions.json.run.json", {})
 
+    def test_sidecar_only_initial_state_is_resumable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "predictions.json"
+            sidecar = root / "predictions.json.run.json"
+            metadata = {"protocol_version": 2}
+            sidecar.write_text(json.dumps(metadata), encoding="utf-8")
+            rows, completed = load_resume_state(output, sidecar, metadata)
+            self.assertEqual(rows, [])
+            self.assertEqual(completed, set())
+            with self.assertRaisesRegex(ValueError, "metadata"):
+                load_resume_state(output, sidecar, {"protocol_version": 3})
+
     def test_parsers(self) -> None:
         self.assertEqual(normalize_mcq("Answer: b"), "B")
         self.assertEqual(parse_number("about 12.49 meters"), 12.49)

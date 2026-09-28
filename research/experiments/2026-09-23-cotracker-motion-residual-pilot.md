@@ -8,7 +8,7 @@
 
 Test whether CoTracker3 points sampled inside an existing SAM 2 mask have larger motion residuals than nearby background-ring points after a robust local affine background fit.
 
-Only the target track changed between the two runs. Both used 64 eroded-mask foreground queries, 96 background-ring queries, three-pixel erosion, ring radii 8--48 pixels, minimum supports of 8 foreground and 16 background points, and the same model/checkpoint/code.
+These are same-parameter case studies, not a target-only controlled comparison. Both used 64 eroded-mask foreground queries, 96 background-ring queries, three-pixel erosion, ring radii 8--48 pixels, minimum supports of 8 foreground and 16 background points, and the same model/checkpoint/code. The clips still differ in frame range, prompt frame, local background, target type, and occlusion pattern.
 
 - Moving target: automatic multi-candidate `T_AUTO_001`, source frames 57--147 every three frames, prompted at source frame 111.
 - Stationary control: manually initialized parked-bicycle `T002`, source frames 57--171 every three frames, prompted at source frame 171.

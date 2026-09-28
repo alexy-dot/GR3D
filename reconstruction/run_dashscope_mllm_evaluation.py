@@ -148,8 +148,13 @@ def validate_unique_request_ids(rows: list[dict], label: str) -> set[str]:
 def load_resume_state(
     output: Path, metadata_path: Path, expected_metadata: dict
 ) -> tuple[list[dict], set[str]]:
-    if output.exists() != metadata_path.exists():
+    if output.exists() and not metadata_path.exists():
         raise ValueError("resume requires both predictions and matching run metadata")
+    if metadata_path.exists() and not output.exists():
+        actual_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        if actual_metadata != expected_metadata:
+            raise ValueError("resume metadata does not match the requested run")
+        return [], set()
     if not output.exists():
         return [], set()
     actual_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
@@ -192,8 +197,16 @@ def main() -> None:
         if (args.condition is None or item["condition"] == args.condition)
         and (args.question_id is None or int(item["question_id"]) == args.question_id)
     ]
+    declared_conditions = {item["condition"] for item in prepared["requests"]}
+    if args.condition is not None and args.condition not in declared_conditions:
+        raise ValueError(
+            f"unknown condition {args.condition!r}; expected one of "
+            f"{sorted(declared_conditions)}"
+        )
     if args.limit is not None:
         selected = selected[: args.limit]
+    if not selected:
+        raise ValueError("request selection is empty")
     output.parent.mkdir(parents=True, exist_ok=True)
     metadata_path = output.with_suffix(output.suffix + ".run.json")
     predictions, completed = load_resume_state(output, metadata_path, metadata)
@@ -202,6 +215,8 @@ def main() -> None:
         raise ValueError(f"existing predictions contain unknown request IDs: {sorted(unknown)}")
     if not metadata_path.exists():
         atomic_write(metadata_path, metadata)
+    if not output.exists():
+        atomic_write(output, predictions)
     for item in selected:
         if item["request_id"] in completed:
             continue

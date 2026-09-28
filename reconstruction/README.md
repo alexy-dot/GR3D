@@ -507,3 +507,26 @@ python reconstruction/score_mllm_evaluation.py \
 For a deliberate partial rerun, repeat `--condition` once per included condition. The
 predictions file must still contain exactly one result for every selected request and no
 others.
+
+## Official OSI-Bench evaluation on AutoDL
+
+Use the official scorer for research comparisons; the project-local scorer above is only
+a diagnostic. The official repository downloads the complete dataset by default and does
+not expose a subset selector, so prepare a complete-scene subset first:
+
+```bash
+pip install remotezip pandas pyarrow
+
+python reconstruction/prepare_osi_official_subset.py \
+  /root/autodl-tmp/osi_subset_smoke \
+  --scene-count 1 \
+  --include-scene 0000 \
+  --seed 20260928 \
+  --download-videos
+```
+
+The output directory contains `data.parquet`, only the selected MP4 files, a provenance
+manifest, and `osibench_subset_config.json` for the official VLMEvalKit fork. Run the
+one-scene raw-video smoke test before the frozen 12-scene pilot. The complete experimental
+contract and pinned official revision are recorded in
+`research/experiments/2026-09-28-osi-official-autodl-plan.md`.

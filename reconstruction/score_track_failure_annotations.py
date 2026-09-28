@@ -6,18 +6,34 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import subprocess
 from collections import Counter
 from pathlib import Path
-
-if __package__:
-    from reconstruction.run_video_instance_tracking import git_state
-else:
-    from run_video_instance_tracking import git_state
-
 
 ASSOCIATIONS = {"correct_target", "wrong_target", "not_assessable"}
 VISIBILITIES = {"visible", "partially_occluded", "fully_occluded", "not_visible"}
 MASK_QUALITIES = {"usable", "partial", "fragmented", "empty"}
+
+
+def git_state(directory: Path) -> tuple[str | None, bool | None]:
+    try:
+        revision = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=directory,
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+        dirty = bool(
+            subprocess.check_output(
+                ["git", "status", "--porcelain"],
+                cwd=directory,
+                text=True,
+                stderr=subprocess.DEVNULL,
+            ).strip()
+        )
+        return revision, dirty
+    except (OSError, subprocess.CalledProcessError):
+        return None, None
 
 
 def sha256(path: Path) -> str:

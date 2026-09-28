@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-23 (Issue #3 complete; Windows Git synchronization moved to SSH 443)
+Last updated: 2026-09-28 (official OSI-Bench AutoDL evaluation preparation)
 
 ## Current objective
 
@@ -21,10 +21,12 @@ Out of scope for the current milestone:
 - object IDs or boxes redrawn onto source images;
 - GR3D visual re-annotation;
 - geometry-to-text conversion;
-- downstream MLLM inference or training;
+- exact GR3D indexed-geometry MLLM inference or training;
 - full dynamic 4D reconstruction.
 
-The first dynamic-scene target is a stable static environmental map with moving regions filtered, not explicit moving-object trajectories.
+The first dynamic-scene target now includes a stable static environmental map with moving
+regions filtered plus bounded, run-scoped dynamic trajectories. Cross-window persistent
+identity and full dynamic 4D reconstruction remain out of scope.
 
 The intended downstream research extension is deliberately different from full GR3D: do not continuously re-annotate object IDs in effectively unbounded real video. Instead, render the persistent but potentially coarse 3D map into canonical coordinate views (initially XY, XZ, and YZ projections with visible axes/grid), provide those renders together with a small task-relevant subset of original frames, and measure whether an MLLM can reason spatially and associate coarse 3D regions with real-image objects without explicit persistent IDs.
 
@@ -50,6 +52,12 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 9. **Treat object correspondence as an empirical question.** A model may infer that a coarse 3D cluster corresponds to an object in a source image from appearance and geometry, but this is not guaranteed without IDs. The evaluation must separately measure spatial reasoning and 2D-to-3D correspondence.
 10. **Add IDs in the 3D representation without redrawing them on every source frame.** Static scene instances should receive deterministic `S###` IDs in the 3D views and object table. Original frames remain unchanged. This is a middle condition between no-ID views and full GR3D image-to-geometry ID projection.
 11. **Represent dynamics separately from the persistent static map.** Do not fuse confirmed moving-object points into the static map. Use `D###` for time-indexed dynamic tracks and `U###` for components whose motion state is not yet supported by enough evidence. Semantic category alone must not decide whether an object is moving.
+12. **Use the official OSI-Bench score as the primary downstream outcome.** Project-local
+    exact-match diagnostics remain useful for debugging, but they do not replace the
+    official category metrics. Map-quality comparisons remain mechanism evidence.
+13. **Evaluate complete-scene subsets before the full benchmark.** The official code has
+    no subset selector and downloads the complete dataset by default. Generate a frozen,
+    official-compatible subset directory with selected MP4s and `data.parquet` instead.
 
 ## Implemented state
 
@@ -57,6 +65,9 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 
 - `research/experiments/2026-09-17-GR3D三维场景重建复现计划.md`
 - Defines Phase A0/A1 short-video reproduction, Phase B window fusion, Phase C loop closure, and Phase D dynamic-object masking.
+- `research/experiments/2026-09-28-osi-official-autodl-plan.md` defines the official
+  raw baseline, fixed A--D representation comparison, AutoDL setup, evidence requirements,
+  and staged one-scene/12-scene/30-scene/full evaluation.
 
 ### Reconstruction entry point
 
@@ -77,6 +88,14 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
   - Records the full alignment basis, origin, heading source, pose convention, and camera-up consistency; inconsistent orientation raises a manifest warning.
 - `reconstruction/README.md`
   - Contains WSL2 setup and exact initial commands for the gaming laptop.
+- `reconstruction/prepare_osi_official_subset.py`
+  - Selects complete scenes deterministically, preserves all questions for those scenes,
+    downloads only selected MP4s through HTTP Range ZIP access, and writes an
+    official-OSIBench-compatible data directory, config, and provenance manifest.
+- The fixed 12-scene selection generated from official metadata hash
+  `ca5556d6f39e15e04236a321f36a756b8479065677bdc782303c285507c336cb`
+  contains 141 questions across all nine released categories. The scene IDs are recorded
+  in the AutoDL evaluation plan rather than selected again per run.
 
 ### Local verification completed on Mac
 
@@ -224,6 +243,10 @@ CoTracker inspected and inference-validated on 2026-09-23:
 - CoTracker: `82e02e8029753ad4ef13cf06be7f4fc5facdda4d`
 - `scaled_offline.pth` SHA-256: `2670d4562ed69326dda775a26e54883925cd11b6fc9b24cb7aa9f8078bce7834`
 
+Official evaluation repository inspected on 2026-09-28:
+
+- OSI-Bench: `e391fab13eecf6e0b03607ff84f38f7ed5a3ec87`
+
 After cloning on another machine, check out these revisions before reproducing the current state.
 
 ## Known unresolved issues
@@ -241,6 +264,9 @@ After cloning on another machine, check out these revisions before reproducing t
 11. The first OSI outdoor pilot proves pipeline integration only. The paper describes synchronized stereo, 32-beam LiDAR, and IMU/GPS and says additional raw multimodal videos will be released, but the current official GitHub/Hugging Face release contains only MP4 and QA metadata. It cannot currently provide sensor-grounded ATE, metric scale, or heading validation.
 12. ADE20K semantic voting on OSI 0000 produces coherent large layout classes, but the current 30-voxel cutoff removes most small-object components. Internal purity must not be interpreted as correct object segmentation.
 13. The protocol-v1 Bailian run is image-only even for its ID-named conditions. The corrected protocol-v2 rerun covers only the two affected ID conditions on one OSI scene; broader conclusions require more scenes, controlled isolation of scene-table context, and alignment with the official evaluator.
+14. The official repository is now integrated as the scoring target. Its default config
+    downloads and extracts the complete dataset and has no scene/question subset option;
+    use the deterministic local subset preparer for smoke and pilot runs.
 
 ## Exact next steps
 
@@ -248,11 +274,18 @@ The executable task specification is `research/experiments/2026-09-21-3d-only-id
 
 The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. The bounded Phase D0 and Phase D1 pilots are complete; the full Phase D2 comparison remains open.
 
-1. Treat the representative-crop condition as visually tagged/confounded until a separately controlled tag-removal method is implemented and audited.
-2. Expand the fixed protocol to additional OSI scenes before drawing representation-level conclusions; integrate the official evaluator if available and keep ground truth inaccessible during inference.
+1. Run the official one-scene raw-video smoke test on AutoDL using the frozen official
+   repository revision and generated subset config.
+2. Freeze and run the 12-complete-scene official raw baseline with seed `20260928`; keep
+   ground truth inaccessible during inference.
 3. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
-4. Run the fixed Phase-D2 comparison of unfiltered Pi3, semantic-only removal, tracked-mask removal and tracked-3D-motion removal on the same scene and views.
-5. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
+4. Add the A--D official-evaluator adapter only after the raw baseline succeeds, preserving
+   identical questions, source frames, model, decoding, and scorer across conditions.
+5. Run the fixed Phase-D2 map-quality comparison alongside A--D to measure ghost geometry,
+   retained background, false parked-object deletion, and tracking failures.
+6. Treat the representative-crop condition as visually tagged/confounded until a
+   separately controlled tag-removal method is implemented and audited.
+7. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
 
