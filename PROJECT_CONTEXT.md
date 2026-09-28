@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-28 (official OSI-Bench AutoDL evaluation preparation)
+Last updated: 2026-09-28 (Condition-B exact-frame implementation)
 
 ## Current objective
 
@@ -60,6 +60,31 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
     official-compatible subset directory with selected MP4s and `data.parquet` instead.
 
 ## Implemented state
+
+### Official OSI evaluation and Condition B
+
+- The official Qwen2.5-VL-3B raw-video baseline completed on the frozen 12-scene pilot:
+  141 questions, all nine categories, score `0.240426` (`24.0426/100`), 1,340 seconds,
+  15,516 MiB peak VRAM on RTX 4090. This is close to the paper's full-set `24.2` and is
+  treated as a pipeline sanity check rather than a representative subset estimate.
+- `reconstruction/extract_qwen_video_frames.py` now reproduces the official fixed-`nframes`
+  Qwen sampler with Decord and `torch.linspace(...).round()`. It saves the exact source
+  indices, decoded PNG hashes, original video identity, FPS/frame count, and installed
+  Qwen-utils source/version provenance.
+- `run_pi3_baseline.py --frame-manifest` now consumes an explicit, hash-validated image
+  sequence and preserves original video indices instead of applying interval sampling.
+- `prepare_osi_condition_b.py` validates one closed provenance chain from the unchanged
+  OSI subset/video through the 32-frame Pi3 run and unfiltered camera-gravity XY/XZ/YZ
+  renders, then writes an official-compatible Condition-B config.
+- `run_osi_condition_b.py` registers an in-memory dataset adapter around the pinned
+  official `OSIBench` class. It leaves the scorer and checkout unchanged, confirms the
+  original video remains in each prompt, and appends only an answer-blind description and
+  the three canonical images.
+- Local focused tests pass. The full discovery run completed 80 tests; five unrelated
+  tracking tests could not import because this Mac Python lacks `cv2`.
+- GPU execution of Condition B is still pending. Run scene `0000` only, first at all 32
+  official frame identities and 100K pixels/frame. On OOM, keep frame identities fixed
+  and reduce only the pixel limit to 70K. Do not scale to all 12 scenes yet.
 
 ### Research plan
 

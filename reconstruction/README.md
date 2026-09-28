@@ -530,3 +530,77 @@ manifest, and `osibench_subset_config.json` for the official VLMEvalKit fork. Ru
 one-scene raw-video smoke test before the frozen 12-scene pilot. The complete experimental
 contract and pinned official revision are recorded in
 `research/experiments/2026-09-28-osi-official-autodl-plan.md`.
+
+## Condition B: official video plus an unfiltered Pi3 map
+
+Condition B keeps the original OSI video and official 32-frame Qwen path unchanged, then
+adds deterministic camera-gravity-aligned XY/XZ/YZ renders from an unfiltered Pi3 map.
+Do not reuse the older eight-frame scene `0000` reconstruction for this comparison.
+
+First extract the same source-frame identities requested by `qwen-vl-utils`. The extractor
+uses Decord and the official fixed-`nframes` formula
+`torch.linspace(0, total_frames - 1, nframes).round().long()` and records package/source
+hashes in `frame_manifest.json`:
+
+```bash
+python reconstruction/extract_qwen_video_frames.py \
+  --video /root/autodl-tmp/osi_subset_smoke/0000.mp4 \
+  --output /root/autodl-tmp/osi_condition_b_0000/frames \
+  --nframes 32
+```
+
+Run a frame-only check, then reconstruct those exact images. `--frame-manifest` bypasses
+the legacy interval/start/max sampler and verifies every frame hash and original frame
+index. Keep all 32 frame identities fixed if a lower resolution is needed after CUDA OOM.
+
+```bash
+export PI3_ROOT=/root/autodl-tmp/work/Pi3
+
+python reconstruction/run_pi3_baseline.py \
+  --input /root/autodl-tmp/osi_condition_b_0000/frames \
+  --frame-manifest /root/autodl-tmp/osi_condition_b_0000/frames/frame_manifest.json \
+  --output /root/autodl-tmp/osi_condition_b_0000/pi3_32f_dry \
+  --model pi3 \
+  --pixel-limit 100000 \
+  --dry-run
+
+python reconstruction/run_pi3_baseline.py \
+  --input /root/autodl-tmp/osi_condition_b_0000/frames \
+  --frame-manifest /root/autodl-tmp/osi_condition_b_0000/frames/frame_manifest.json \
+  --output /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k \
+  --model pi3 \
+  --pixel-limit 100000
+```
+
+Render the unfiltered map and build the provenance-checked official config:
+
+```bash
+python reconstruction/render_canonical_views.py \
+  --point-cloud /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k/point_cloud.ply \
+  --camera-poses /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k/camera_poses.npy \
+  --output /root/autodl-tmp/osi_condition_b_0000/canonical_views \
+  --alignment camera-gravity
+
+python reconstruction/prepare_osi_condition_b.py \
+  --subset-dir /root/autodl-tmp/osi_subset_smoke \
+  --scene 0000 \
+  --frame-manifest /root/autodl-tmp/osi_condition_b_0000/frames/frame_manifest.json \
+  --pi3-run /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k \
+  --canonical-views /root/autodl-tmp/osi_condition_b_0000/canonical_views \
+  --output /root/autodl-tmp/osi_condition_b_0000/package
+```
+
+Finally run the unchanged official model and scorer through the Condition-B launcher:
+
+```bash
+python reconstruction/run_osi_condition_b.py \
+  --vlmeval-root /root/autodl-tmp/work/GR3D/third_party/OSI-Bench/VLMEvalKit \
+  --condition-manifest /root/autodl-tmp/osi_condition_b_0000/package/condition_b_manifest.json \
+  --config /root/autodl-tmp/osi_condition_b_0000/package/osibench_condition_b_config.json \
+  --work-dir /root/autodl-tmp/osi_condition_b_0000/official_outputs
+```
+
+The launcher registers a temporary `OSIConditionB` dataset class in memory. It does not
+edit the pinned VLMEvalKit checkout or its evaluator. It validates the subset/video/view
+hashes, calls the original `OSIBench.build_prompt`, confirms that the original video item
+is present, and appends only one answer-blind description plus the three canonical images.

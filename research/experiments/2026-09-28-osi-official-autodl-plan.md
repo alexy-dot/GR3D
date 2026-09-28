@@ -117,3 +117,25 @@ or scorer between conditions.
   protocol, or checkpoint metadata.
 - Do not scale past 12 scenes if any condition uses different questions, source frames,
   model settings, or scoring code.
+
+## Status on 2026-09-28
+
+The official raw-video path is reproduced. On the frozen 12-scene, 141-question pilot,
+Qwen2.5-VL-3B-Instruct scored `0.240426` (`24.0426/100`), close to the paper's full-set
+`24.2` and therefore sufficient as an implementation sanity check. The run took 1,340
+seconds and peaked at 15,516 MiB VRAM on an RTX 4090.
+
+Condition-B code is implemented but GPU execution is pending. It now:
+
+- extracts the exact Qwen fixed-32 source indices with the Decord backend and saves a
+  hash-closed frame manifest;
+- makes Pi3 consume that explicit frame manifest without resampling;
+- validates the chain from original video to extracted frames, Pi3 run, point cloud, and
+  camera-gravity canonical renders;
+- launches the pinned official evaluator without editing its scorer, preserving the
+  original video and adding only the three unfiltered Pi3 views.
+
+The next experiment is only scene `0000`. First try all 32 frames at 100,000 pixels per
+frame. If Pi3 raises CUDA OOM, retain the same 32 frame indices and reduce only
+`--pixel-limit` to 70,000. Do not process the other 11 scenes until the ten-question A/B
+comparison completes and its prompt/output artifacts have been inspected.

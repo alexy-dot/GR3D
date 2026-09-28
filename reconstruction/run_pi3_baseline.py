@@ -63,6 +63,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--input", required=True, help="Image directory or MP4 video.")
     parser.add_argument("--output", required=True, help="Directory for this run.")
+    parser.add_argument(
+        "--frame-manifest",
+        help=(
+            "Explicit frame-selection manifest for an image-directory input. "
+            "When set, interval/start/max sampling is bypassed."
+        ),
+    )
     parser.add_argument("--model", choices=("pi3", "pi3x"), default="pi3")
     parser.add_argument("--checkpoint", default=None, help="Optional local model checkpoint.")
     parser.add_argument("--interval", type=int, default=30, help="Keep every Nth frame.")
@@ -151,6 +158,64 @@ def load_image_directory(
     return images, records
 
 
+def load_manifest_image_directory(
+    path: Path,
+    manifest_path: Path,
+) -> tuple[list[Image.Image], list[FrameRecord], dict]:
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != 1:
+        raise ValueError("frame manifest must use schema_version 1")
+    rows = manifest.get("frames")
+    if not isinstance(rows, list) or len(rows) < 2:
+        raise ValueError("frame manifest must contain at least two frames")
+
+    manifest_files: list[Path] = []
+    images: list[Image.Image] = []
+    records: list[FrameRecord] = []
+    previous_source_index = -1
+    for sequence_index, row in enumerate(rows):
+        if int(row.get("sequence_index", -1)) != sequence_index:
+            raise ValueError("frame manifest sequence_index values must be dense and zero-based")
+        relative_path = Path(str(row["relative_path"]))
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            raise ValueError("frame manifest paths must stay inside the input directory")
+        image_path = (path / relative_path).resolve()
+        try:
+            image_path.relative_to(path.resolve())
+        except ValueError as error:
+            raise ValueError("frame manifest path escapes the input directory") from error
+        if not image_path.is_file():
+            raise FileNotFoundError(image_path)
+        expected_hash = str(row.get("sha256", ""))
+        if not expected_hash or file_sha256(image_path) != expected_hash:
+            raise ValueError(f"frame hash mismatch: {relative_path.as_posix()}")
+        source_index = int(row["source_index"])
+        if source_index <= previous_source_index:
+            raise ValueError("frame manifest source_index values must be strictly increasing")
+        previous_source_index = source_index
+        manifest_files.append(image_path)
+        images.append(Image.open(image_path).convert("RGB"))
+        records.append(
+            FrameRecord(
+                sequence_index=sequence_index,
+                source_index=source_index,
+                timestamp_seconds=(
+                    float(row["timestamp_seconds"])
+                    if row.get("timestamp_seconds") is not None
+                    else None
+                ),
+                source_name=str(row.get("source_name", relative_path.name)),
+            )
+        )
+
+    directory_files = [entry.resolve() for entry in image_directory_files(path)]
+    if directory_files != manifest_files:
+        raise ValueError(
+            "input directory image membership/order does not exactly match the frame manifest"
+        )
+    return images, records, manifest
+
+
 def load_video(
     path: Path,
     interval: int,
@@ -198,9 +263,19 @@ def load_video(
     return images, records
 
 
-def load_frames(args: argparse.Namespace) -> tuple[torch.Tensor, list[FrameRecord], tuple[int, int]]:
+def load_frames(
+    args: argparse.Namespace,
+) -> tuple[torch.Tensor, list[FrameRecord], tuple[int, int], dict | None]:
     input_path = Path(args.input).expanduser().resolve()
-    if input_path.is_dir():
+    frame_manifest = None
+    if args.frame_manifest:
+        if not input_path.is_dir():
+            raise ValueError("--frame-manifest requires --input to be an image directory")
+        manifest_path = Path(args.frame_manifest).expanduser().resolve()
+        images, records, frame_manifest = load_manifest_image_directory(
+            input_path, manifest_path
+        )
+    elif input_path.is_dir():
         images, records = load_image_directory(
             input_path, args.interval, args.start_frame, args.max_frames
         )
@@ -215,7 +290,7 @@ def load_frames(args: argparse.Namespace) -> tuple[torch.Tensor, list[FrameRecor
     width, height = images[0].size
     size = target_size(width, height, args.pixel_limit)
     tensors = [pil_to_tensor(image, size) for image in images]
-    return torch.stack(tensors), records, size
+    return torch.stack(tensors), records, size, frame_manifest
 
 
 def choose_dtype(name: str) -> torch.dtype:
@@ -301,7 +376,7 @@ def main() -> None:
     resolved_input = Path(args.input).expanduser().resolve()
     source_input_identity = input_identity(resolved_input)
 
-    images_cpu, frame_records, resized_size = load_frames(args)
+    images_cpu, frame_records, resized_size, frame_manifest = load_frames(args)
     (output_dir / "frames.txt").write_text(
         "\n".join(json.dumps(asdict(record), ensure_ascii=False) for record in frame_records) + "\n",
         encoding="utf-8",
@@ -322,6 +397,24 @@ def main() -> None:
         "arguments": vars(args),
         "input": str(resolved_input),
         "input_identity": source_input_identity,
+        "frame_selection": (
+            {
+                "mode": "explicit_manifest",
+                "manifest": str(Path(args.frame_manifest).expanduser().resolve()),
+                "manifest_sha256": file_sha256(
+                    Path(args.frame_manifest).expanduser().resolve()
+                ),
+                "source_video_identity": frame_manifest.get("source_video_identity"),
+                "sampler": frame_manifest.get("sampling"),
+            }
+            if frame_manifest is not None
+            else {
+                "mode": "legacy_interval_sampling",
+                "start_frame": args.start_frame,
+                "interval": args.interval,
+                "max_frames": args.max_frames,
+            }
+        ),
         "frame_count": len(frame_records),
         "resized_width": resized_size[0],
         "resized_height": resized_size[1],
@@ -447,14 +540,20 @@ def main() -> None:
             f"{manifest['peak_gpu_gib']:.2f} GiB."
         )
     except torch.OutOfMemoryError as error:
+        recommendation = (
+            "Retry with a lower --pixel-limit (start with 70000) while keeping the "
+            "same --frame-manifest and frame identities. Close other GPU applications first."
+            if frame_manifest is not None
+            else (
+                "Retry with --max-frames 6 and/or --pixel-limit 70000. "
+                "Close other GPU applications first."
+            )
+        )
         failure = {
             **base_manifest,
             "status": "cuda_oom",
             "error": str(error),
-            "recommendation": (
-                "Retry with --max-frames 6 and/or --pixel-limit 70000. "
-                "Close other GPU applications first."
-            ),
+            "recommendation": recommendation,
         }
         write_json(output_dir / "manifest.json", failure)
         raise SystemExit(failure["recommendation"]) from error
