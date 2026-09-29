@@ -334,6 +334,7 @@ def main() -> None:
         "point_cloud": str(cloud_path),
         "point_cloud_sha256": sha256(cloud_path),
         "camera_poses": str(pose_path) if pose_path else None,
+        "camera_poses_sha256": sha256(pose_path) if pose_path else None,
         "source_point_count": int(len(all_points)),
         "rendered_point_count": int(len(points)),
         "max_points": args.max_points,

@@ -192,6 +192,15 @@ class DynamicMotionTests(unittest.TestCase):
             states_path.write_text(
                 json.dumps({
                     "track_candidate_id": "T",
+                    "external_identity": None,
+                    "coordinate_system": {
+                        "name": "pi3_world",
+                        "units": "pi3_model_units",
+                        "axis_values_are_meters": False,
+                        "metric_scale_validated": False,
+                        "meters_per_unit": None,
+                        "scale_provenance": None,
+                    },
                     "states": states([[0, 0, 0], [0.01, 0, 0], [0.02, 0, 0]]),
                     "provenance": {"source": "synthetic"},
                 }),

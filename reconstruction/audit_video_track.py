@@ -12,6 +12,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+try:
+    from reconstruction.tracking_contracts import normalize_external_identity
+except ModuleNotFoundError:
+    from tracking_contracts import normalize_external_identity
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -99,31 +104,85 @@ def main() -> None:
     manifest_path = args.track_manifest.resolve()
     root = manifest_path.parent
     track = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if track.get("status") != "complete":
+        raise ValueError("tracking manifest is not complete")
+    if track.get("source_frames_modified") is not False:
+        raise ValueError("tracking run must preserve source frames")
+    external_identity = normalize_external_identity(track.get("external_identity"))
+    track_frames = track.get("frames", [])
+    if not track_frames:
+        raise ValueError("track contains no saved frames")
+    sample_indices = [int(row["sample_index"]) for row in track_frames]
+    source_indices = [int(row["source_frame_index"]) for row in track_frames]
+    timestamps = [float(row["timestamp_seconds"]) for row in track_frames]
+    if len(sample_indices) != len(set(sample_indices)):
+        raise ValueError("track contains duplicate sample indices")
+    if any(second <= first for first, second in zip(sample_indices, sample_indices[1:])):
+        raise ValueError("track sample indices must be strictly increasing")
+    if any(second <= first for first, second in zip(source_indices, source_indices[1:])):
+        raise ValueError("track source frame indices must be strictly increasing")
+    if any(second <= first for first, second in zip(timestamps, timestamps[1:])):
+        raise ValueError("track timestamps must be strictly increasing")
     masks = []
-    for row in track["frames"]:
-        mask = cv2.imread(str(root / row["mask_path"]), cv2.IMREAD_GRAYSCALE)
+    for row in track_frames:
+        if row.get("track_candidate_id") != track.get("track_candidate_id"):
+            raise ValueError("tracking frame belongs to another candidate")
+        if normalize_external_identity(row.get("external_identity")) != external_identity:
+            raise ValueError("tracking frame external identity mismatch")
+        mask_path = root / row["mask_path"]
+        frame_path = root / row["tracking_frame_path"]
+        if sha256(mask_path) != row.get("mask_sha256"):
+            raise ValueError("saved track mask hash mismatch")
+        if sha256(frame_path) != row.get("tracking_frame_sha256"):
+            raise ValueError("saved tracking frame hash mismatch")
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
         if mask is None:
             raise ValueError(f"cannot read mask: {row['mask_path']}")
         masks.append(mask > 0)
     frame_rows, summary = analyze_masks(masks)
-    for result, source in zip(frame_rows, track["frames"]):
+    for result, source in zip(frame_rows, track_frames, strict=True):
         result.update({
+            "sample_index": int(source["sample_index"]),
             "source_frame_index": int(source["source_frame_index"]),
             "timestamp_seconds": float(source["timestamp_seconds"]),
             "mask_sha256": source["mask_sha256"],
+            "tracking_frame_sha256": source["tracking_frame_sha256"],
         })
 
-    selected = np.linspace(0, len(track["frames"]) - 1, min(args.sample_count, len(track["frames"])), dtype=int)
+    selected = np.linspace(
+        0,
+        len(track_frames) - 1,
+        min(args.sample_count, len(track_frames)),
+        dtype=int,
+    )
+    prompt_sample_index = int(track.get("parameters", {}).get("prompt_sample_index", 0))
+    prompt_positions = [
+        index for index, row in enumerate(track_frames)
+        if int(row["sample_index"]) == prompt_sample_index
+    ]
+    if not prompt_positions:
+        raise ValueError("prompt sample is missing from saved track frames")
+    selected = np.asarray(
+        sorted(set(selected.tolist()) | {prompt_positions[0]}), dtype=int
+    )
     tiles = []
     for index in selected:
-        row = track["frames"][int(index)]
+        row = track_frames[int(index)]
         frame = cv2.imread(str(root / row["tracking_frame_path"]), cv2.IMREAD_COLOR)
         if frame is None:
             raise ValueError(f"cannot read tracking frame: {row['tracking_frame_path']}")
         mask = masks[int(index)]
         overlay = frame.copy()
         overlay[mask] = (0.35 * overlay[mask] + 0.65 * np.asarray([0, 0, 255])).astype(np.uint8)
-        label = f"sample {row['sample_index']} | source {row['source_frame_index']}"
+        identity_label = (
+            f"OSI-{external_identity['object_id']} | "
+            if external_identity is not None
+            else ""
+        )
+        label = (
+            f"{identity_label}sample {row['sample_index']} | "
+            f"source {row['source_frame_index']}"
+        )
         cv2.putText(overlay, label, (8, 21), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 3, cv2.LINE_AA)
         cv2.putText(overlay, label, (8, 21), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
         tiles.append(overlay)
@@ -141,7 +200,14 @@ def main() -> None:
     payload = {
         "status": "complete",
         "track_candidate_id": track["track_candidate_id"],
+        "external_identity": external_identity,
         "track_manifest_sha256": sha256(manifest_path),
+        "source_frames_modified": False,
+        "identity_binding_evidence": {
+            "prompt": track.get("prompt"),
+            "prompt_sample_index": prompt_sample_index,
+            "association_is_human_auditable": external_identity is not None,
+        },
         "summary": summary,
         "frames": frame_rows,
         "contact_sheet": {

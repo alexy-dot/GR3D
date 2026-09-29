@@ -125,6 +125,11 @@ def build_condition_b_manifest(
         camera_poses_path.resolve(),
         "render camera poses path",
     )
+    require_equal(
+        render_manifest.get("camera_poses_sha256"),
+        file_sha256(camera_poses_path),
+        "render camera poses hash",
+    )
 
     expected_outputs = ["view_xy.png", "view_xz.png", "view_yz.png"]
     require_equal(render_manifest.get("outputs"), expected_outputs, "canonical view set")

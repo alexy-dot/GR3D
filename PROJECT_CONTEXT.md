@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-29 (Condition-B v1 audit and v2 protocol correction)
+Last updated: 2026-09-30 (Condition-D identity/time/provenance hardening)
 
 ## Current objective
 
@@ -20,9 +20,12 @@ Out of scope for the current milestone:
 
 - object IDs or boxes redrawn onto source images;
 - GR3D visual re-annotation;
-- geometry-to-text conversion;
 - exact GR3D indexed-geometry MLLM inference or training;
 - full dynamic 4D reconstruction.
+
+The bounded OSI evaluation milestone now permits answer-blind, question-conditioned
+trajectory coordinates and derived geometry as a controlled Condition-D input. This is
+not continuous source-frame re-annotation or full GR3D indexed-geometry training.
 
 The first dynamic-scene target now includes a stable static environmental map with moving
 regions filtered plus bounded, run-scoped dynamic trajectories. Cross-window persistent
@@ -58,6 +61,16 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
 13. **Evaluate complete-scene subsets before the full benchmark.** The official code has
     no subset selector and downloads the complete dataset by default. Generate a frozen,
     official-compatible subset directory with selected MP4s and `data.parquet` instead.
+14. **Keep benchmark identity separate from project IDs.** `T###` is a tracking
+    candidate and `S###/D###/U###` is a run-scoped motion-state ID. OSI numeric identity
+    is a separate `external_identity` contract with scene, namespace, association method,
+    and explicit verification evidence.
+15. **Never bridge missing time evidence.** Question-time interpolation must remain
+    inside observed trajectory coverage, below the configured time gap, and may not cross
+    an invalid 3D state.
+16. **Require independent scale provenance.** Original Pi3 coordinates remain model
+    units. Meter-valued evidence is accepted only from a positive, hash-bound scale
+    calibration explicitly independent of benchmark answers.
 
 ## Implemented state
 
@@ -104,6 +117,43 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
   Pi3 axis ticks as meters is therefore not supported. The gain is repeatable under this
   prompt correction, but it still comes from one of ten questions and its mechanism is
   unresolved because B-v2 has neither OSI-ID correspondence nor metric scale.
+
+### Condition-D protocol implementation
+
+- `tracking_contracts.py` defines the external OSI identity, coordinate-system, and
+  optional metric-scale contracts. Leading-zero labels such as `03` remain displayable,
+  while duplicate `03`/`3` identities are detected canonically.
+- `run_video_instance_tracking.py` preserves `external_identity` independently from the
+  run-local tracking candidate. Alignment now verifies the tracking video against the
+  source-video identity recorded by the exact Pi3 frame manifest and uses the Pi3 frame
+  manifest timestamp as the aligned trajectory time source.
+- `run_pi3_baseline.py --save-observations` records an explicit non-metric Pi3 coordinate
+  system. `lift_tracks_to_3d.py` validates observation shapes/bounds and camera-pose count,
+  then saves object and camera centers at every sampled timestamp.
+- Classification, selected indices, lifted states, raw observations, static-map output,
+  camera poses, track audit, trajectory table, and question evidence are now hash-bound.
+  Mixing artifacts from different runs is rejected.
+- `audit_video_track.py` includes the verified OSI label and initialization frame in a
+  derived contact sheet without modifying source images. A verified external identity
+  cannot be rendered for Condition D without this audit chain.
+- `render_dynamic_tracks.py` supports camera-gravity alignment, preserves invalid states
+  in the trajectory CSV, and exports timestamps, object centers, camera centers, units,
+  motion state, external identity, and audit provenance.
+- `osi_question_evidence.py` parses OSI IDs and seconds from question text, selects only
+  matching verified tracks, refuses extrapolation/invalid-state bridging, and creates
+  question-specific trajectory renders. It derives model-unit displacement, speed,
+  camera distance, or pairwise distance when supported.
+- `prepare_osi_condition_d.py` requires a same-run dynamic-filtered static map, at least
+  one confirmed dynamic trajectory, verified ID audits, matching camera poses, and the
+  unchanged single-scene official subset. `run_osi_condition_d.py` preserves the original
+  video, rejects model/data/32-frame config changes, and uses the unchanged official
+  scorer through an in-memory dataset adapter.
+- Meter-valued evidence is disabled by default. The optional scale contract requires a
+  validated source type, exact Pi3 manifest hash, source-artifact hash, positive scale,
+  and `independent_of_benchmark_answers=true`.
+- Syntax checks and 52 focused unit/integration tests pass. Full discovery finds 109
+  tests: 104 pass, while the same five modules fail to import because this Mac Python
+  lacks `cv2`. GPU/SAM/Pi3 inference remains an AutoDL validation step.
 
 ### Research plan
 
@@ -311,6 +361,12 @@ After cloning on another machine, check out these revisions before reproducing t
 14. The official repository is now integrated as the scoring target. Its default config
     downloads and extracts the complete dataset and has no scene/question subset option;
     use the deterministic local subset preparer for smoke and pilot runs.
+15. Automatic OCR/tag-to-object association is not implemented. Scene `0000` Condition D
+    must begin with manually verified boxes for the question-relevant OSI IDs. This is an
+    explicit scalability limit, not a hidden identity claim.
+16. Original Pi3 still has no independently validated meter scale on OSI scene `0000`.
+    The new scale contract prevents accidental meter claims but cannot create calibration
+    data that the public benchmark release does not provide.
 
 ## Exact next steps
 
@@ -322,20 +378,23 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
    control. Do not report its `0.27` as a stable 3D gain.
 2. Preserve the completed scene-0000 `B-v2` outputs. Generate and hash the exact
    A/B-v1/B-v2 row comparison before any cross-scene scaling.
-3. Implement query-conditioned C/D evidence separately: static-map filtering, question
-   timestamps, 3D-only OSI ID correspondence, and dynamic trajectories must remain
-   explicit variables rather than being folded into B.
-4. Treat metric scale as a separate unresolved requirement. Do not calibrate Pi3 with
+3. Pull the Condition-D contract commit on AutoDL. Rerun the exact 32-frame Pi3 job once
+   with `--save-observations`; preserve the completed non-observation run unchanged.
+4. Manually verify initialization boxes for scene-0000 OSI IDs `26` and `30`, run SAM 2,
+   inspect each generated identity contact sheet, then align/lift/classify the tracks.
+5. Build the same-run dynamic-filtered static map, camera-gravity trajectory renders, and
+   question-specific Condition-D package. Run only scene `0000` first.
+6. Treat metric scale as a separate unresolved requirement. Do not calibrate Pi3 with
    benchmark answers; test an independently scaled method such as Pi3X only as a labeled
    extension.
-5. The frozen 12-scene raw baseline is complete, but do not run 12-scene B/C/D until the
+7. The frozen 12-scene raw baseline is complete, but do not run 12-scene B/C/D until the
    scene-0000 protocol and visual representation pass review.
-6. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
-7. Run the fixed Phase-D2 map-quality comparison alongside A--D to measure ghost geometry,
+8. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
+9. Run the fixed Phase-D2 map-quality comparison alongside A--D to measure ghost geometry,
    retained background, false parked-object deletion, and tracking failures.
-8. Treat the representative-crop condition as visually tagged/confounded until a
+10. Treat the representative-crop condition as visually tagged/confounded until a
    separately controlled tag-removal method is implemented and audited.
-9. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
+11. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
 

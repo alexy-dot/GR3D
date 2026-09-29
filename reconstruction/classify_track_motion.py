@@ -9,6 +9,14 @@ import json
 import math
 from pathlib import Path
 
+try:
+    from reconstruction.tracking_contracts import (
+        normalize_external_identity,
+        validate_coordinate_system,
+    )
+except ModuleNotFoundError:
+    from tracking_contracts import normalize_external_identity, validate_coordinate_system
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -279,6 +287,8 @@ def main() -> None:
     args = parser.parse_args()
     input_path = args.input.resolve()
     payload = json.loads(input_path.read_text(encoding="utf-8"))
+    external_identity = normalize_external_identity(payload.get("external_identity"))
+    coordinate_system = validate_coordinate_system(payload.get("coordinate_system"))
     evidence_path = args.background_evidence.resolve() if args.background_evidence else input_path
     evidence_payload = json.loads(evidence_path.read_text(encoding="utf-8"))
     intervals, evidence_warnings = background_intervals_from_payload(evidence_payload)
@@ -291,6 +301,8 @@ def main() -> None:
     )
     output = {
         "track_candidate_id": payload.get("track_candidate_id"),
+        "external_identity": external_identity,
+        "coordinate_system": coordinate_system,
         "classification": result,
         "input_provenance": {
             **payload.get("provenance", {}),

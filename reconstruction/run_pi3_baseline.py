@@ -26,8 +26,10 @@ try:
         image_directory_files,
         input_identity,
     )
+    from reconstruction.tracking_contracts import pi3_coordinate_system
 except ModuleNotFoundError:
     from input_identity import file_sha256, image_directory_files, input_identity
+    from tracking_contracts import pi3_coordinate_system
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -426,6 +428,7 @@ def main() -> None:
             if args.checkpoint and not args.dry_run
             else None
         ),
+        "coordinate_system": pi3_coordinate_system(args.model),
     }
     write_json(output_dir / "manifest.json", base_manifest)
 

@@ -18,8 +18,13 @@ import torch
 
 if __package__:
     from reconstruction.input_identity import input_identity
+    from reconstruction.tracking_contracts import (
+        external_identity_key,
+        normalize_external_identity,
+    )
 else:
     from input_identity import input_identity
+    from tracking_contracts import external_identity_key, normalize_external_identity
 
 
 def normalize_prompts(payload: dict) -> list[dict]:
@@ -37,10 +42,23 @@ def normalize_prompts(payload: dict) -> list[dict]:
             raise ValueError("track IDs must be non-empty and boxes must contain four finite values")
         if box[2] <= box[0] or box[3] <= box[1]:
             raise ValueError("prompt boxes must have positive area")
-        normalized.append({**prompt, "track_candidate_id": track_id, "box_xyxy": box})
+        external_identity = normalize_external_identity(prompt.get("external_identity"))
+        normalized.append({
+            **prompt,
+            "track_candidate_id": track_id,
+            "box_xyxy": box,
+            "external_identity": external_identity,
+        })
     track_ids = [prompt["track_candidate_id"] for prompt in normalized]
     if len(track_ids) != len(set(track_ids)):
         raise ValueError("track_candidate_id values must be unique")
+    external_keys = [
+        external_identity_key(prompt["external_identity"])
+        for prompt in normalized
+        if prompt["external_identity"] is not None
+    ]
+    if len(external_keys) != len(set(external_keys)):
+        raise ValueError("external_identity values must be unique within one prompt")
     sample_indices = {int(prompt["sample_index"]) for prompt in normalized}
     if len(sample_indices) != 1:
         raise ValueError("multi-candidate prompts must share one sample_index")
@@ -171,6 +189,20 @@ def main() -> None:
     prompt_sample_index = int(prompts[0]["sample_index"])
     if not 0 <= prompt_sample_index < len(frames):
         raise ValueError("prompt sample_index is outside extracted frames")
+    prompt_frame = cv2.imread(
+        str(output / "frames" / frames[prompt_sample_index]["frame_path"]),
+        cv2.IMREAD_COLOR,
+    )
+    if prompt_frame is None:
+        raise ValueError("cannot read the saved prompt frame")
+    frame_height, frame_width = prompt_frame.shape[:2]
+    for prompt in prompts:
+        x0, y0, x1, y1 = prompt["box_xyxy"]
+        if x0 < 0 or y0 < 0 or x1 > frame_width or y1 > frame_height:
+            raise ValueError(
+                f"prompt box for {prompt['track_candidate_id']} is outside "
+                f"the {frame_width}x{frame_height} tracking frame"
+            )
 
     from sam2.build_sam import build_sam2_video_predictor
 
@@ -223,6 +255,7 @@ def main() -> None:
                 "source_frame_index": record["source_frame_index"],
                 "timestamp_seconds": record["timestamp_seconds"],
                 "semantic_name": prompt.get("semantic_name"),
+                "external_identity": prompt.get("external_identity"),
                 "tracking_frame_path": str((output / "frames" / record["frame_path"]).relative_to(output)),
                 "tracking_frame_sha256": record["frame_sha256"],
                 "mask_path": str(mask_path.relative_to(output)),
@@ -272,6 +305,7 @@ def main() -> None:
         manifest = {
             **common,
             "track_candidate_id": prompt["track_candidate_id"],
+            "external_identity": prompt.get("external_identity"),
             "prompt": prompt,
             "frames": entries_by_track[prompt["track_candidate_id"]],
         }
@@ -285,6 +319,7 @@ def main() -> None:
             manifest = {
                 **common,
                 "track_candidate_id": track_id,
+                "external_identity": prompt.get("external_identity"),
                 "prompt": prompt,
                 "multi_candidate_run": True,
                 "frames": entries_by_track[track_id],
@@ -294,6 +329,7 @@ def main() -> None:
             track_manifests.append(
                 {
                     "track_candidate_id": track_id,
+                    "external_identity": prompt.get("external_identity"),
                     "sam2_object_id": object_id,
                     "manifest_path": path.name,
                     "manifest_sha256": sha256(path),

@@ -70,6 +70,7 @@ class OSIConditionBTests(unittest.TestCase):
                 "time_conditioned": False,
                 "point_cloud_sha256": file_sha256(point_cloud),
                 "camera_poses": str(camera_poses.resolve()),
+                "camera_poses_sha256": file_sha256(camera_poses),
                 "outputs": ["view_xy.png", "view_xz.png", "view_yz.png"],
             }
             (views / "render_manifest.json").write_text(

@@ -357,6 +357,32 @@ JSON containing a `tracks` list. The tracker shares one SAM 2 video state and wr
 `track_manifest_<track_candidate_id>.json` per candidate. Each per-track manifest
 can be passed directly to `align_track_to_pi3.py`.
 
+For OSI evaluation, keep the run-local candidate ID separate from the benchmark ID.
+Only set `verified=true` after visually confirming that the box encloses the object whose
+baked-in OSI number is visible in the source video:
+
+```json
+{
+  "track_candidate_id": "T_OSI_26",
+  "sample_index": 31,
+  "box_xyxy": [120, 80, 190, 230],
+  "semantic_name": "person",
+  "external_identity": {
+    "namespace": "osi_bench_numeric_id",
+    "scene_id": "0000",
+    "object_id": "26",
+    "association_method": "manual_box",
+    "verified": true,
+    "notes": "Manually checked against the baked-in source-video tag."
+  }
+}
+```
+
+`T_OSI_26` is still a project-local tracking candidate. The external identity is the
+separate, audited statement that this candidate corresponds to OSI object `26`. Duplicate
+external IDs, scene mismatches, unverified identities, and frame-level identity changes
+are rejected before Condition D is prepared. Source images remain unchanged.
+
 ## Run the manual dynamic-object pilot
 
 Keep SAM 2 tracking and Pi3 reconstruction sequential on an 8 GiB GPU. The tracking
@@ -423,6 +449,31 @@ python reconstruction/render_dynamic_tracks.py \
 
 The resulting ID is valid only within the bounded clip. Background-normalized Pi3 motion
 is not a physical metric trajectory or proof of cross-window identity.
+
+For a verified OSI identity, first create the track audit and then render in the same
+camera-gravity coordinate system used by the static map:
+
+```bash
+python reconstruction/audit_video_track.py \
+  outputs/osi26/track/track_manifest.json \
+  outputs/osi26/track_audit
+
+python reconstruction/render_dynamic_tracks.py \
+  outputs/pi3_observations/point_observations.npz \
+  outputs/osi26/lifted/selected_point_indices.npz \
+  outputs/osi26/lifted/track_3d_states.json \
+  outputs/osi26/motion_classification.json \
+  outputs/osi26/trajectory_render \
+  --camera-poses outputs/pi3_observations/camera_poses.npy \
+  --alignment camera-gravity \
+  --track-audit outputs/osi26/track_audit/track_audit.json \
+  --entity-id D001
+```
+
+The trajectory CSV contains valid and invalid 3D states, source frame indices,
+timestamps, object centers, camera centers, and quality warnings. Question-time
+interpolation cannot cross an invalid state, leave the observed time range, or exceed the
+declared maximum time gap.
 
 Optionally add CoTracker3 point evidence as a separate diagnostic. Sample points from
 the eroded target-mask interior and a surrounding background ring, then explain local
@@ -576,7 +627,8 @@ python reconstruction/run_pi3_baseline.py \
   --frame-manifest /root/autodl-tmp/osi_condition_b_0000/frames/frame_manifest.json \
   --output /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k \
   --model pi3 \
-  --pixel-limit 100000
+  --pixel-limit 100000 \
+  --save-observations
 ```
 
 Render the unfiltered map and build the provenance-checked official config:
@@ -612,3 +664,86 @@ The launcher registers a temporary `OSIConditionB` dataset class in memory. It d
 edit the pinned VLMEvalKit checkout or its evaluator. It validates the subset/video/view
 hashes, calls the original `OSIBench.build_prompt`, confirms that the original video item
 is present, and appends only one answer-blind description plus the three canonical images.
+
+## Condition D: verified OSI IDs and question-time trajectories
+
+Condition D is intentionally stricter than Condition B. It requires:
+
+- the same official video and frozen 32 Pi3 frame identities;
+- a Pi3 run created with `--save-observations`;
+- a verified `external_identity` for every supplied OSI trajectory;
+- a saved track audit/contact sheet that includes the initialization frame;
+- exact source-video, Pi3-run, observation, selected-index, classification, camera-pose,
+  static-map, trajectory-table, and question-text hashes;
+- a dynamic-filtered static map built from the same classified tracks;
+- question-time evidence that refuses extrapolation and invalid-state bridging.
+
+Build one combined static map after the required OSI targets have been tracked, lifted,
+audited, and classified. Paths in the bundle are relative to the bundle file:
+
+```json
+{
+  "tracks": [
+    {
+      "track_candidate_id": "T_OSI_26",
+      "classification_path": "osi26/motion_classification.json",
+      "selected_indices_path": "osi26/lifted/selected_point_indices.npz"
+    },
+    {
+      "track_candidate_id": "T_OSI_30",
+      "classification_path": "osi30/motion_classification.json",
+      "selected_indices_path": "osi30/lifted/selected_point_indices.npz"
+    }
+  ]
+}
+```
+
+```bash
+python reconstruction/build_static_dynamic_map.py \
+  /root/autodl-tmp/osi_condition_d_0000/pi3_32f_100k_observations \
+  /root/autodl-tmp/osi_condition_d_0000/track_bundle.json \
+  /root/autodl-tmp/osi_condition_d_0000/static_dynamic_map
+
+python reconstruction/render_canonical_views.py \
+  --point-cloud /root/autodl-tmp/osi_condition_d_0000/static_dynamic_map/static_map.ply \
+  --camera-poses /root/autodl-tmp/osi_condition_d_0000/pi3_32f_100k_observations/camera_poses.npy \
+  --output /root/autodl-tmp/osi_condition_d_0000/static_views \
+  --alignment camera-gravity \
+  --coordinate-units pi3-model-units
+```
+
+Prepare question-specific evidence by supplying each verified trajectory-render directory.
+The preparer parses OSI IDs and seconds from the question text, selects only matching
+tracks, interpolates within valid observed intervals, and writes one answer-blind render
+per supported question:
+
+Condition D v1 intentionally accepts a **single-scene subset only**. For scene `0000`,
+use the frozen smoke subset whose `data.parquet` contains only scene `0000`; passing the
+12-scene pilot directory is rejected before any evaluation starts.
+
+```bash
+python reconstruction/prepare_osi_condition_d.py \
+  --subset-dir /root/autodl-tmp/osi_subset_smoke \
+  --scene 0000 \
+  --static-views /root/autodl-tmp/osi_condition_d_0000/static_views \
+  --trajectory-render /root/autodl-tmp/osi_condition_d_0000/osi26/trajectory_render \
+  --trajectory-render /root/autodl-tmp/osi_condition_d_0000/osi30/trajectory_render \
+  --max-interpolation-gap 2.0 \
+  --output /root/autodl-tmp/osi_condition_d_0000/package
+
+python reconstruction/run_osi_condition_d.py \
+  --vlmeval-root /root/autodl-tmp/work/GR3D/third_party/OSI-Bench/VLMEvalKit \
+  --condition-manifest /root/autodl-tmp/osi_condition_d_0000/package/condition_d_manifest.json \
+  --config /root/autodl-tmp/osi_condition_d_0000/package/osibench_condition_d_config.json \
+  --work-dir /root/autodl-tmp/osi_condition_d_0000/official_outputs
+```
+
+Original Pi3 remains non-metric. Condition D therefore exports Pi3 model-unit geometry
+and explicitly tells the model not to read those values as meters. Optional meter-valued
+derived evidence is accepted only through `--scale-calibration` with schema version 1,
+`status=validated`, a positive `meters_per_model_unit`, a hash-bound source artifact,
+the exact Pi3 manifest hash, and `independent_of_benchmark_answers=true`. OSI answers
+must never be used as that calibration source.
+
+The launcher also rechecks the generated official config. Changing the model, data path,
+condition manifest, `nframe=32`, or fixed-frame sampling after preparation is rejected.

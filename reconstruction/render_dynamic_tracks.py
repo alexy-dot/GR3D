@@ -15,6 +15,16 @@ import numpy as np
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
 
+try:
+    from reconstruction.render_canonical_views import camera_gravity_alignment
+    from reconstruction.tracking_contracts import (
+        normalize_external_identity,
+        validate_coordinate_system,
+    )
+except ModuleNotFoundError:
+    from render_canonical_views import camera_gravity_alignment
+    from tracking_contracts import normalize_external_identity, validate_coordinate_system
+
 
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
@@ -60,6 +70,13 @@ def main() -> None:
     parser.add_argument("classification", type=Path)
     parser.add_argument("output_directory", type=Path)
     parser.add_argument("--entity-id")
+    parser.add_argument("--camera-poses", type=Path)
+    parser.add_argument("--track-audit", type=Path)
+    parser.add_argument(
+        "--alignment",
+        choices=("raw", "camera-gravity"),
+        default="raw",
+    )
     parser.add_argument("--max-background-points", type=int, default=100000)
     parser.add_argument("--max-dynamic-points", type=int, default=60000)
     args = parser.parse_args()
@@ -75,6 +92,39 @@ def main() -> None:
         points = archive["points"].astype(np.float64)
     states_payload = json.loads(states_path.read_text(encoding="utf-8"))
     classification_payload = json.loads(classification_path.read_text(encoding="utf-8"))
+    coordinate_system = validate_coordinate_system(states_payload.get("coordinate_system"))
+    if validate_coordinate_system(classification_payload.get("coordinate_system")) != coordinate_system:
+        raise ValueError("classification and track states use different coordinate systems")
+    external_identity = normalize_external_identity(states_payload.get("external_identity"))
+    if normalize_external_identity(classification_payload.get("external_identity")) != external_identity:
+        raise ValueError("classification and track states use different external identities")
+    state_provenance = states_payload.get("provenance", {})
+    classification_provenance = classification_payload.get("input_provenance", {})
+    if state_provenance.get("point_observations_sha256") != sha256(observations_path):
+        raise ValueError("track states belong to different Pi3 observations")
+    if state_provenance.get("selected_point_indices_sha256") != sha256(selected_path):
+        raise ValueError("selected indices do not belong to these track states")
+    if classification_provenance.get("track_states_sha256") != sha256(states_path):
+        raise ValueError("classification belongs to different track states")
+    track_audit_path = args.track_audit.resolve() if args.track_audit else None
+    track_audit = None
+    if external_identity is not None and external_identity["verified"]:
+        if track_audit_path is None:
+            raise ValueError("verified external identity requires --track-audit")
+        track_audit = json.loads(track_audit_path.read_text(encoding="utf-8"))
+        if track_audit.get("track_candidate_id") != states_payload["track_candidate_id"]:
+            raise ValueError("track audit belongs to another candidate")
+        if normalize_external_identity(track_audit.get("external_identity")) != external_identity:
+            raise ValueError("track audit external identity mismatch")
+        if track_audit.get("track_manifest_sha256") != state_provenance.get(
+            "track_manifest_sha256"
+        ):
+            raise ValueError("track audit and lifted states use different track manifests")
+        if track_audit.get("source_frames_modified") is not False:
+            raise ValueError("track audit must preserve source frames")
+        contact_sheet_path = track_audit_path.parent / track_audit["contact_sheet"]["path"]
+        if sha256(contact_sheet_path) != track_audit["contact_sheet"]["sha256"]:
+            raise ValueError("track audit contact-sheet hash mismatch")
     motion_state = classification_payload["classification"]["motion_state"]
     selected = selected_by_frame(selected_path, len(points))
     tracked_indices = np.unique(
@@ -89,14 +139,66 @@ def main() -> None:
     entity_id = args.entity_id or f"{expected_prefix}001"
     if not entity_id.startswith(expected_prefix):
         raise ValueError(f"entity ID {entity_id} does not match motion state {motion_state}")
-    states = [row for row in states_payload["states"] if row.get("center_xyz_median") is not None]
-    states.sort(key=lambda row: (float(row["timestamp_seconds"]), int(row["sample_index"])))
+    all_states = sorted(
+        states_payload["states"],
+        key=lambda row: (float(row["timestamp_seconds"]), int(row["sample_index"])),
+    )
+    states = [row for row in all_states if row.get("center_xyz_median") is not None]
     if not states:
         raise ValueError("track contains no valid 3D states")
     centers = np.asarray([row["center_xyz_median"] for row in states], dtype=np.float64)
+    all_camera_centers = np.asarray(
+        [row.get("camera_center_xyz") for row in all_states], dtype=np.float64
+    )
+    if all_camera_centers.shape != (len(all_states), 3) or not np.isfinite(
+        all_camera_centers
+    ).all():
+        raise ValueError("all track states require finite camera_center_xyz")
+    valid_positions = [
+        index for index, row in enumerate(all_states)
+        if row.get("center_xyz_median") is not None
+    ]
+    camera_centers = all_camera_centers[valid_positions]
     times = np.asarray([row["timestamp_seconds"] for row in states], dtype=np.float64)
 
-    frame_times = {int(row["sample_index"]): float(row["timestamp_seconds"]) for row in states}
+    alignment_details = None
+    camera_poses_path = args.camera_poses.resolve() if args.camera_poses else None
+    if args.alignment == "camera-gravity":
+        if camera_poses_path is None:
+            raise ValueError("camera-gravity alignment requires --camera-poses")
+        if state_provenance.get("camera_poses_sha256") != sha256(camera_poses_path):
+            raise ValueError("camera poses differ from the file used for 3D lifting")
+        poses = np.load(camera_poses_path)
+        if poses.ndim != 3 or poses.shape[1:] != (4, 4):
+            raise ValueError("camera poses must have shape (N, 4, 4)")
+        if len(poses) != len(all_states):
+            raise ValueError("camera pose count differs from trajectory state count")
+        if not np.isfinite(poses).all():
+            raise ValueError("camera poses contain non-finite values")
+        origin, basis, alignment_details = camera_gravity_alignment(points, poses)
+        points = (points - origin) @ basis
+        centers = (centers - origin) @ basis
+        all_camera_centers = (all_camera_centers - origin) @ basis
+        camera_centers = (camera_centers - origin) @ basis
+        output_coordinate_system = {
+            **coordinate_system,
+            "source_coordinate_system_name": coordinate_system["name"],
+            "name": f"camera_gravity_aligned_{coordinate_system['name']}",
+            "alignment": "camera-gravity",
+            "alignment_details": alignment_details,
+        }
+    else:
+        output_coordinate_system = {
+            **coordinate_system,
+            "source_coordinate_system_name": coordinate_system["name"],
+            "alignment": "raw",
+            "alignment_details": None,
+        }
+
+    frame_times = {
+        int(row["sample_index"]): float(row["timestamp_seconds"])
+        for row in all_states
+    }
     missing_times = sorted(set(selected) - set(frame_times))
     if missing_times:
         raise ValueError(f"selected indices have no matching 3D state times: {missing_times}")
@@ -139,7 +241,15 @@ def main() -> None:
         axis.set_aspect("equal", adjustable="datalim")
     if scatter is not None:
         figure.colorbar(scatter, ax=axes, label="Time (seconds)", shrink=0.8)
-    figure.suptitle(f"{entity_id} trajectory: {motion_state} (source {states_payload['track_candidate_id']})")
+    identity_label = (
+        f"OSI-{external_identity['object_id']}"
+        if external_identity is not None
+        else "unbound benchmark ID"
+    )
+    figure.suptitle(
+        f"{identity_label} / {entity_id} trajectory: {motion_state} "
+        f"(source {states_payload['track_candidate_id']})"
+    )
     render_path = output / "dynamic_trajectory_xyz.png"
     figure.savefig(render_path, dpi=180)
     plt.close(figure)
@@ -174,24 +284,46 @@ def main() -> None:
     table_path = output / "trajectory.csv"
     with table_path.open("w", newline="", encoding="utf-8") as stream:
         writer = csv.writer(stream)
-        writer.writerow(["ordinal", "sample_index", "source_frame_index", "timestamp_seconds", "x", "y", "z", "point_count"])
-        for ordinal, row in enumerate(states):
+        center_by_sample = {
+            int(row["sample_index"]): center
+            for row, center in zip(states, centers, strict=True)
+        }
+        writer.writerow([
+            "ordinal", "sample_index", "source_frame_index", "timestamp_seconds",
+            "valid_3d", "x", "y", "z", "camera_x", "camera_y", "camera_z",
+            "point_count", "quality_warnings",
+        ])
+        for ordinal, (row, camera_center) in enumerate(
+            zip(all_states, all_camera_centers, strict=True)
+        ):
+            center = center_by_sample.get(int(row["sample_index"]))
             writer.writerow([
                 ordinal,
                 row["sample_index"],
                 row["source_frame_index"],
                 row["timestamp_seconds"],
-                *row["center_xyz_median"],
+                center is not None,
+                *(center.tolist() if center is not None else ["", "", ""]),
+                *camera_center.tolist(),
                 row["point_count"],
+                json.dumps(row.get("quality_warnings", []), separators=(",", ":")),
             ])
 
     manifest = {
         "status": "complete",
         "track_candidate_id": states_payload["track_candidate_id"],
+        "external_identity": external_identity,
         "entity_id": entity_id,
         "motion_state": motion_state,
-        "coordinate_system": "raw_pi3_model_units",
+        "coordinate_system": output_coordinate_system,
+        "axis_values_are_meters": False,
+        "metric_scale_validated": False,
+        "object_id_correspondence": bool(
+            external_identity is not None and external_identity["verified"]
+        ),
+        "time_conditioned": True,
         "valid_state_count": len(states),
+        "invalid_state_count": len(all_states) - len(states),
         "source_point_count": len(points),
         "selected_tracked_point_count": int(len(np.unique(all_dynamic_indices))),
         "excluded_from_static_point_count": int(len(tracked_indices)) if motion_state != "static" else 0,
@@ -200,10 +332,26 @@ def main() -> None:
             "max_dynamic_points": args.max_dynamic_points,
         },
         "provenance": {
+            "source_pi3_manifest_sha256": states_payload.get("provenance", {}).get(
+                "pi3_manifest_sha256"
+            ),
             "observations_sha256": sha256(observations_path),
             "selected_indices_sha256": sha256(selected_path),
             "track_states_sha256": sha256(states_path),
             "classification_sha256": sha256(classification_path),
+            "camera_poses_sha256": (
+                sha256(camera_poses_path) if camera_poses_path is not None else None
+            ),
+            "track_audit": str(track_audit_path) if track_audit_path else None,
+            "track_audit_sha256": sha256(track_audit_path) if track_audit_path else None,
+            "identity_contact_sheet": (
+                str(track_audit_path.parent / track_audit["contact_sheet"]["path"])
+                if track_audit is not None
+                else None
+            ),
+            "identity_contact_sheet_sha256": (
+                track_audit["contact_sheet"]["sha256"] if track_audit is not None else None
+            ),
         },
         "outputs": {
             "render": {"path": render_path.name, "sha256": sha256(render_path)},
