@@ -57,6 +57,25 @@ valid metric reconstruction. B-v1 therefore does not establish a stable 3D benef
 5. Treat metric scale as an independent requirement. Never derive scale from benchmark
    answers.
 
+## Protocol-v2 follow-up
+
+Condition-B v2 completed on 2026-09-29 after adding explicit non-metric labels to every
+render, telling the model not to treat coordinates or point-cloud distances as meters,
+and declaring that the views contain no OSI-ID correspondence or question-time slice.
+The official score remained `0.27`.
+
+The person-ID 26 displacement prediction remained `2` for answer `2.18`, retaining score
+`0.9`. The person-ID 30 displacement prediction changed from B-v1 `1.2` to B-v2 `2`, but
+remained incorrect for answer `6.07`. Other reported numerical predictions and category
+scores were unchanged.
+
+This follow-up rejects the narrow explanation that the entire B-v1 improvement disappears
+when the model is warned that Pi3 axes are not meters. It does not establish correct
+metric reasoning: the gain still comes from only one question, Pi3 remains non-metric,
+and the representation still lacks an explicit mapping from OSI IDs to reconstructed
+objects. The appropriate claim is a repeatable single-scene, single-question improvement
+under the corrected protocol, with unresolved causal mechanism.
+
 ## Interpretation boundary
 
 This experiment proves that supplemental Pi3 views can alter model predictions. It does

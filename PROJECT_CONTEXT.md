@@ -96,6 +96,14 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
   and schema-v2 manifests declare `metric_scale=false`, `object_id_correspondence=false`,
   and `time_conditioned_evidence=false`. The dataset name is suffixed `B-v2` so old
   predictions cannot be silently reused or overwritten.
+- The official scene-0000 `B-v2` rerun completed on 2026-09-29 and again scored `0.27`.
+  Person-ID 26 displacement remained prediction `2` for answer `2.18` and score `0.9`
+  despite the explicit non-metric image and prompt warnings. Person-ID 30 displacement
+  changed from B-v1 prediction `1.2` to B-v2 prediction `2`, but remained incorrect for
+  answer `6.07`. The simple hypothesis that the B-v1 gain was caused only by reading the
+  Pi3 axis ticks as meters is therefore not supported. The gain is repeatable under this
+  prompt correction, but it still comes from one of ten questions and its mechanism is
+  unresolved because B-v2 has neither OSI-ID correspondence nor metric scale.
 
 ### Research plan
 
@@ -312,8 +320,8 @@ The detailed dynamic-object implementation backlog is `research/experiments/2026
 
 1. Preserve the completed scene-0000 `B-v1` outputs and hashes as a historical raw-map
    control. Do not report its `0.27` as a stable 3D gain.
-2. Rerender and evaluate scene `0000` under Condition-B protocol v2 in new output
-   directories. Compare all ten rows against A and B-v1 before any cross-scene scaling.
+2. Preserve the completed scene-0000 `B-v2` outputs. Generate and hash the exact
+   A/B-v1/B-v2 row comparison before any cross-scene scaling.
 3. Implement query-conditioned C/D evidence separately: static-map filtering, question
    timestamps, 3D-only OSI ID correspondence, and dynamic trajectories must remain
    explicit variables rather than being folded into B.
