@@ -19,8 +19,11 @@ except ModuleNotFoundError:
 
 EVIDENCE_TEXT = (
     "The following three images are camera-gravity-aligned orthographic XY, XZ, and YZ "
-    "views of an unfiltered Pi3 reconstruction from the same original video. Axes and "
-    "the camera path are shown. Use them only as additional spatial evidence."
+    "views of an unfiltered Pi3 reconstruction from the same original video. The axes "
+    "use arbitrary Pi3 model units, not meters. Do not treat axis values or point-cloud "
+    "distances as metric measurements. The views do not link OSI numeric object IDs to "
+    "3D regions and are not conditioned on a question timestamp. Axes and the camera "
+    "path are shown. Use the views only as non-metric global spatial context."
 )
 
 
@@ -30,10 +33,19 @@ def read_json(path: Path) -> dict:
 
 def validate_condition_manifest(path: Path) -> dict:
     manifest = read_json(path)
-    if manifest.get("schema_version") != 1 or manifest.get("condition") != "B":
-        raise ValueError("expected a schema-v1 Condition-B manifest")
+    if manifest.get("schema_version") != 2 or manifest.get("condition") != "B":
+        raise ValueError("expected a schema-v2 Condition-B manifest")
+    if manifest.get("protocol_version") != "condition-b-v2-nonmetric-explicit":
+        raise ValueError("unexpected Condition-B protocol version")
     if not manifest.get("answer_blind") or not manifest.get("original_video_preserved"):
         raise ValueError("Condition-B manifest must preserve original video and be answer-blind")
+    expected_capabilities = {
+        "metric_scale": False,
+        "object_id_correspondence": False,
+        "time_conditioned_evidence": False,
+    }
+    if manifest.get("capabilities") != expected_capabilities:
+        raise ValueError("Condition-B capability declaration mismatch")
     data_path = Path(manifest["subset"]["data_path"])
     if file_sha256(data_path) != manifest["subset"]["data_sha256"]:
         raise ValueError("subset data hash mismatch")

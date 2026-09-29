@@ -68,6 +68,31 @@ def build_condition_b_manifest(
     require_equal(render_manifest.get("status"), "complete", "render status")
     require_equal(render_manifest.get("alignment"), "camera-gravity", "render alignment")
     require_equal(
+        render_manifest.get("coordinate_units"),
+        "pi3_model_units",
+        "render coordinate units",
+    )
+    require_equal(
+        render_manifest.get("axis_values_are_meters"),
+        False,
+        "render metric-axis declaration",
+    )
+    require_equal(
+        render_manifest.get("metric_scale_validated"),
+        False,
+        "render metric-scale declaration",
+    )
+    require_equal(
+        render_manifest.get("object_id_correspondence"),
+        False,
+        "render object-ID correspondence declaration",
+    )
+    require_equal(
+        render_manifest.get("time_conditioned"),
+        False,
+        "render time-conditioning declaration",
+    )
+    require_equal(
         frame_manifest.get("source_video_identity"),
         input_identity(video_path),
         "source video identity",
@@ -111,15 +136,21 @@ def build_condition_b_manifest(
         views.append({"axis": name[5:7], "path": str(path), "sha256": file_sha256(path)})
 
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "condition": "B",
-        "condition_name": "raw_video_plus_unfiltered_pi3_canonical_views",
+        "condition_name": "raw_video_plus_unfiltered_pi3_canonical_views_v2",
+        "protocol_version": "condition-b-v2-nonmetric-explicit",
         "created_at": datetime.now(timezone.utc).isoformat(),
         "code_revision": git_revision(PROJECT_ROOT),
         "answer_blind": True,
         "source_frames_modified": False,
         "original_video_preserved": True,
         "supplemental_evidence": "unfiltered Pi3 camera-gravity-aligned XY/XZ/YZ views",
+        "capabilities": {
+            "metric_scale": False,
+            "object_id_correspondence": False,
+            "time_conditioned_evidence": False,
+        },
         "subset": {
             "directory": str(subset_dir),
             "data_path": str(subset_data_path),
@@ -155,12 +186,12 @@ def build_config(source_config: dict, condition_manifest_path: Path) -> dict:
     condition_dataset = {
         **source_dataset,
         "class": "OSIConditionB",
-        "dataset": f"{source_dataset_name}-B",
+        "dataset": f"{source_dataset_name}-B-v2",
         "condition_manifest": str(condition_manifest_path.resolve()),
     }
     return {
         "model": model_config,
-        "data": {f"{source_dataset_name}-B": condition_dataset},
+        "data": {f"{source_dataset_name}-B-v2": condition_dataset},
     }
 
 

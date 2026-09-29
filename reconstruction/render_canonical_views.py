@@ -42,6 +42,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clip-percentile", type=float, default=1.0)
     parser.add_argument("--point-size", type=float, default=0.35)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument(
+        "--coordinate-units",
+        choices=("model-units", "pi3-model-units"),
+        default="model-units",
+        help=(
+            "Non-metric unit label recorded in the render. Condition B must use "
+            "pi3-model-units."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -217,6 +226,7 @@ def render_view(
     output: Path,
     point_size: float,
     coordinate_label: str,
+    coordinate_units: str,
 ) -> None:
     x_axis, y_axis = axes
     fig, ax = plt.subplots(figsize=(8, 8), dpi=180)
@@ -237,9 +247,21 @@ def render_view(
     ax.set_xlim(bounds[0, x_axis], bounds[1, x_axis])
     ax.set_ylim(bounds[0, y_axis], bounds[1, y_axis])
     ax.set_aspect("equal", adjustable="box")
-    ax.set_xlabel(labels[0])
-    ax.set_ylabel(labels[1])
-    ax.set_title(f"{coordinate_label} {labels[0]}-{labels[1]} orthographic view")
+    ax.set_xlabel(f"{labels[0]} ({coordinate_units})")
+    ax.set_ylabel(f"{labels[1]} ({coordinate_units})")
+    ax.set_title(
+        f"{coordinate_label} {labels[0]}-{labels[1]} orthographic view\n"
+        "NON-METRIC: axis values are Pi3 model units, not meters"
+    )
+    ax.text(
+        0.01,
+        0.01,
+        "No OSI object-ID correspondence; not time-conditioned",
+        transform=ax.transAxes,
+        fontsize=7,
+        color="0.25",
+        bbox={"facecolor": "white", "alpha": 0.8, "edgecolor": "0.75"},
+    )
     ax.grid(True, color="0.85", linewidth=0.5)
     fig.tight_layout()
     fig.savefig(output, bbox_inches="tight")
@@ -264,6 +286,11 @@ def main() -> None:
     alignment_details = None
     coordinate_system = "raw_model_coordinates_not_gravity_aligned"
     coordinate_label = "Raw model-coordinate"
+    coordinate_unit_labels = {
+        "model-units": "model units; not meters",
+        "pi3-model-units": "Pi3 model units; not meters",
+    }
+    coordinate_units = coordinate_unit_labels[args.coordinate_units]
     if args.alignment == "camera-gravity":
         if poses is None:
             raise ValueError("--alignment camera-gravity requires --camera-poses")
@@ -290,12 +317,18 @@ def main() -> None:
     for name, (axes, labels) in view_specs.items():
         render_view(
             points, colors, cameras, axes, labels, bounds,
-            output_dir / f"view_{name}.png", args.point_size, coordinate_label
+            output_dir / f"view_{name}.png", args.point_size, coordinate_label,
+            coordinate_units,
         )
 
     manifest = {
         "status": "complete",
         "coordinate_system": coordinate_system,
+        "coordinate_units": args.coordinate_units.replace("-", "_"),
+        "axis_values_are_meters": False,
+        "metric_scale_validated": False,
+        "object_id_correspondence": False,
+        "time_conditioned": False,
         "alignment": args.alignment,
         "alignment_details": alignment_details,
         "point_cloud": str(cloud_path),

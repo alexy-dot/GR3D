@@ -537,6 +537,13 @@ Condition B keeps the original OSI video and official 32-frame Qwen path unchang
 adds deterministic camera-gravity-aligned XY/XZ/YZ renders from an unfiltered Pi3 map.
 Do not reuse the older eight-frame scene `0000` reconstruction for this comparison.
 
+The first scene-0000 run is retained as historical protocol `B-v1`. Its renders exposed
+numeric Pi3 axis ticks without stating that the coordinates were non-metric. Protocol
+`B-v2` fixes that experimental confound: the images and prompt explicitly say that axis
+values are Pi3 model units, not meters, and that the global views contain neither OSI
+object-ID correspondence nor question-time conditioning. Use new `b_v2` directories and
+never overwrite the `B-v1` outputs.
+
 First extract the same source-frame identities requested by `qwen-vl-utils`. The extractor
 uses Decord and the official fixed-`nframes` formula
 `torch.linspace(0, total_frames - 1, nframes).round().long()` and records package/source
@@ -578,16 +585,17 @@ Render the unfiltered map and build the provenance-checked official config:
 python reconstruction/render_canonical_views.py \
   --point-cloud /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k/point_cloud.ply \
   --camera-poses /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k/camera_poses.npy \
-  --output /root/autodl-tmp/osi_condition_b_0000/canonical_views \
-  --alignment camera-gravity
+  --output /root/autodl-tmp/osi_condition_b_0000/b_v2_canonical_views \
+  --alignment camera-gravity \
+  --coordinate-units pi3-model-units
 
 python reconstruction/prepare_osi_condition_b.py \
   --subset-dir /root/autodl-tmp/osi_subset_smoke \
   --scene 0000 \
   --frame-manifest /root/autodl-tmp/osi_condition_b_0000/frames/frame_manifest.json \
   --pi3-run /root/autodl-tmp/osi_condition_b_0000/pi3_32f_100k \
-  --canonical-views /root/autodl-tmp/osi_condition_b_0000/canonical_views \
-  --output /root/autodl-tmp/osi_condition_b_0000/package
+  --canonical-views /root/autodl-tmp/osi_condition_b_0000/b_v2_canonical_views \
+  --output /root/autodl-tmp/osi_condition_b_0000/b_v2_package
 ```
 
 Finally run the unchanged official model and scorer through the Condition-B launcher:
@@ -595,9 +603,9 @@ Finally run the unchanged official model and scorer through the Condition-B laun
 ```bash
 python reconstruction/run_osi_condition_b.py \
   --vlmeval-root /root/autodl-tmp/work/GR3D/third_party/OSI-Bench/VLMEvalKit \
-  --condition-manifest /root/autodl-tmp/osi_condition_b_0000/package/condition_b_manifest.json \
-  --config /root/autodl-tmp/osi_condition_b_0000/package/osibench_condition_b_config.json \
-  --work-dir /root/autodl-tmp/osi_condition_b_0000/official_outputs
+  --condition-manifest /root/autodl-tmp/osi_condition_b_0000/b_v2_package/condition_b_manifest.json \
+  --config /root/autodl-tmp/osi_condition_b_0000/b_v2_package/osibench_condition_b_config.json \
+  --work-dir /root/autodl-tmp/osi_condition_b_0000/b_v2_official_outputs
 ```
 
 The launcher registers a temporary `OSIConditionB` dataset class in memory. It does not

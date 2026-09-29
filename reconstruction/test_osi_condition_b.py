@@ -63,6 +63,11 @@ class OSIConditionBTests(unittest.TestCase):
             render_manifest = {
                 "status": "complete",
                 "alignment": "camera-gravity",
+                "coordinate_units": "pi3_model_units",
+                "axis_values_are_meters": False,
+                "metric_scale_validated": False,
+                "object_id_correspondence": False,
+                "time_conditioned": False,
                 "point_cloud_sha256": file_sha256(point_cloud),
                 "camera_poses": str(camera_poses.resolve()),
                 "outputs": ["view_xy.png", "view_xz.png", "view_yz.png"],
@@ -75,6 +80,19 @@ class OSIConditionBTests(unittest.TestCase):
                 subset, "0000", frame_manifest_path, pi3, views
             )
             self.assertTrue(manifest["original_video_preserved"])
+            self.assertEqual(manifest["schema_version"], 2)
+            self.assertEqual(
+                manifest["protocol_version"],
+                "condition-b-v2-nonmetric-explicit",
+            )
+            self.assertEqual(
+                manifest["capabilities"],
+                {
+                    "metric_scale": False,
+                    "object_id_correspondence": False,
+                    "time_conditioned_evidence": False,
+                },
+            )
             self.assertEqual(manifest["scenes"]["0000"]["source_indices"], [0, 1])
             self.assertEqual(
                 [view["axis"] for view in manifest["scenes"]["0000"]["views"]],
@@ -98,8 +116,9 @@ class OSIConditionBTests(unittest.TestCase):
             manifest = Path(directory) / "condition.json"
             config = build_config(source, manifest)
         self.assertEqual(config["model"], source["model"])
-        dataset = config["data"]["OSI-Bench-Subset-B"]
+        dataset = config["data"]["OSI-Bench-Subset-B-v2"]
         self.assertEqual(dataset["class"], "OSIConditionB")
+        self.assertEqual(dataset["dataset"], "OSI-Bench-Subset-B-v2")
         self.assertEqual(dataset["data_path"], "/data/osi")
         self.assertEqual(dataset["nframe"], 32)
 
@@ -122,6 +141,8 @@ class OSIConditionBTests(unittest.TestCase):
         ])
         self.assertEqual([item["type"] for item in augmented], ["text", "video", "text", "image", "image", "image"])
         self.assertEqual([item["value"] for item in augmented[-3:]], ["/views/xy.png", "/views/xz.png", "/views/yz.png"])
+        self.assertIn("not meters", augmented[2]["value"])
+        self.assertIn("do not link OSI numeric object IDs", augmented[2]["value"])
 
 
 if __name__ == "__main__":

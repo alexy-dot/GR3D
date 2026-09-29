@@ -1,6 +1,6 @@
 # Project Context
 
-Last updated: 2026-09-28 (Condition-B exact-frame implementation)
+Last updated: 2026-09-29 (Condition-B v1 audit and v2 protocol correction)
 
 ## Current objective
 
@@ -82,9 +82,20 @@ The previous Omni-View/OSI-Bench evaluation work is background context only and 
   the three canonical images.
 - Local focused tests pass. The full discovery run completed 80 tests; five unrelated
   tracking tests could not import because this Mac Python lacks `cv2`.
-- GPU execution of Condition B is still pending. Run scene `0000` only, first at all 32
-  official frame identities and 100K pixels/frame. On OOM, keep frame identities fixed
-  and reduce only the pixel limit to 70K. Do not scale to all 12 scenes yet.
+- The first official scene-0000 Condition-B run (`B-v1`) scored `0.27` versus the raw
+  Condition-A score `0.18`. Row-level comparison showed that the entire `+0.09` gain came
+  from one of ten questions: person-ID 26 displacement changed from prediction `10` to
+  `2` for answer `2.18`, scoring `0.9`. The other nine scores were unchanged.
+- Visual audit rejected `B-v1` as general improvement evidence. The global projections
+  contain fragmented and overlapping geometry, no mapping from OSI IDs to 3D regions,
+  and no question-time slice. Numeric Pi3 model-unit ticks were also shown without
+  explicitly saying they were not meters, so the single displacement improvement may be
+  a scale-reading coincidence rather than recovered metric geometry.
+- Condition-B protocol v2 preserves `B-v1` and removes that confound. Renders visibly
+  label axes as non-metric Pi3 model units; the prompt forbids treating them as meters;
+  and schema-v2 manifests declare `metric_scale=false`, `object_id_correspondence=false`,
+  and `time_conditioned_evidence=false`. The dataset name is suffixed `B-v2` so old
+  predictions cannot be silently reused or overwritten.
 
 ### Research plan
 
@@ -299,18 +310,24 @@ The executable task specification is `research/experiments/2026-09-21-3d-only-id
 
 The detailed dynamic-object implementation backlog is `research/experiments/2026-09-21-dynamic-object-tracking-pilot-todo.md`. The bounded Phase D0 and Phase D1 pilots are complete; the full Phase D2 comparison remains open.
 
-1. Run the official one-scene raw-video smoke test on AutoDL using the frozen official
-   repository revision and generated subset config.
-2. Freeze and run the 12-complete-scene official raw baseline with seed `20260928`; keep
-   ground truth inaccessible during inference.
-3. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
-4. Add the A--D official-evaluator adapter only after the raw baseline succeeds, preserving
-   identical questions, source frames, model, decoding, and scorer across conditions.
-5. Run the fixed Phase-D2 map-quality comparison alongside A--D to measure ghost geometry,
+1. Preserve the completed scene-0000 `B-v1` outputs and hashes as a historical raw-map
+   control. Do not report its `0.27` as a stable 3D gain.
+2. Rerender and evaluate scene `0000` under Condition-B protocol v2 in new output
+   directories. Compare all ten rows against A and B-v1 before any cross-scene scaling.
+3. Implement query-conditioned C/D evidence separately: static-map filtering, question
+   timestamps, 3D-only OSI ID correspondence, and dynamic trajectories must remain
+   explicit variables rather than being folded into B.
+4. Treat metric scale as a separate unresolved requirement. Do not calibrate Pi3 with
+   benchmark answers; test an independently scaled method such as Pi3X only as a labeled
+   extension.
+5. The frozen 12-scene raw baseline is complete, but do not run 12-scene B/C/D until the
+   scene-0000 protocol and visual representation pass review.
+6. Treat the completed moving-person/moving-person/parked-bicycle set and two-track failure audit as bounded policy checks only; they are not enough for a general robustness or ID-switch-rate claim.
+7. Run the fixed Phase-D2 map-quality comparison alongside A--D to measure ghost geometry,
    retained background, false parked-object deletion, and tracking failures.
-6. Treat the representative-crop condition as visually tagged/confounded until a
+8. Treat the representative-crop condition as visually tagged/confounded until a
    separately controlled tag-removal method is implemented and audited.
-7. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
+9. Long-video overlapping-window association remains later. Never infer persistence from per-run component numbers.
 
 ## Handoff status
 
